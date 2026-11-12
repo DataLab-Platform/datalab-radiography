@@ -286,11 +286,12 @@ def refine_model(
 
     def model(params: np.ndarray) -> np.ndarray:
         prow, pcol, prad, base, slope_y, slope_x, amplitude, sigma = params
-        squared = ((rows - prow) ** 2 + (cols - pcol) ** 2) / prad**2
+        distance = np.hypot(rows - prow, cols - pcol)
         if shape == SHAPE_SPHERE:
-            thickness = np.sqrt(np.clip(1.0 - squared, 0.0, None))
+            thickness = np.sqrt(np.clip(1.0 - (distance / prad) ** 2, 0.0, None))
         else:
-            thickness = (squared <= 1.0).astype(float)
+            # Linear ramp over one sub-sample: continuous in the parameters
+            thickness = np.clip((prad - distance) * factor + 0.5, 0.0, 1.0)
         thickness = thickness.reshape(
             region.shape[0], factor, region.shape[1], factor
         ).mean(axis=(1, 3))

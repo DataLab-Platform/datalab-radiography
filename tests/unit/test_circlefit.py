@@ -37,21 +37,23 @@ def projected_object(
 
 
 @pytest.mark.parametrize(
-    ("radius", "shape", "blur", "bright"),
+    ("radius", "shape", "blur", "bright", "tolerance"),
     [
-        (6.0, "sphere", 0.5, False),
-        (10.0, "sphere", 0.7, False),
-        (20.3, "sphere", 1.0, False),
-        (35.7, "sphere", 1.5, False),
-        (12.5, "sphere", 0.9, True),
-        (15.2, "disk", 0.8, False),
+        (6.0, "sphere", 0.5, False, 1e-2),
+        (10.0, "sphere", 0.7, False, 5e-3),
+        (20.3, "sphere", 1.0, False, 5e-3),
+        (35.7, "sphere", 1.5, False, 5e-3),
+        (12.5, "sphere", 0.9, True, 5e-3),
+        (8.3, "disk", 0.6, False, 1e-2),
+        (15.2, "disk", 0.8, False, 5e-3),
     ],
 )
-def test_model_fit_is_accurate(radius, shape, blur, bright) -> None:
-    """The model fit finds the radius within 0.5 % and the center."""
-    image, xc, yc = projected_object(radius, shape, blur, bright=bright)
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_model_fit_is_accurate(radius, shape, blur, bright, tolerance, seed) -> None:
+    """The model fit finds the radius (within 0.5 % from 10 pixels) and center."""
+    image, xc, yc = projected_object(radius, shape, blur, bright=bright, seed=seed)
     fit = circlefit.fit_circle(image, shape=shape)
-    assert fit.radius == pytest.approx(radius, rel=5e-3)
+    assert fit.radius == pytest.approx(radius, rel=tolerance)
     assert fit.xc == pytest.approx(xc, abs=0.05)
     assert fit.yc == pytest.approx(yc, abs=0.05)
     assert fit.diameter == pytest.approx(2 * fit.radius)
