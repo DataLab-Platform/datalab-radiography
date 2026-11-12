@@ -32,3 +32,10 @@ Simulator and examples:
 
 - X-ray radiography simulator, with a live view: butt weld with pores, a crack, wire and duplex image quality indicators (ISO 19232-1 and -5) and a calibration ball; pipe seen tangentially; aluminum step wedge; cast plate with pores. Each object plane has its own magnification and geometric unsharpness; the detector adds blur, a heel effect, gain and offset non-uniformity, Poisson and read noise, defective pixels and saturation. Acquisitions add radiographs, dark and flat frames with their geometry, magnifications and ground truth.
 - Simulated examples: weld (two magnifications), pipe (two magnifications), step wedge, and a correction campaign with dark and flat frames. A welcome page tile opens the weld example.
+
+Detector corrections and physical quantities:
+
+- Offset and gain correction of raw radiographs with mean dark and flat frames (detector offset, gain non-uniformity, heel effect), as corrected images or transmissions, with the correction of the defective pixels found in the dark and flat frames and a quality report (saturation, invalid gain, defective pixels).
+- Defective pixel map and correction: pixels deviating from their local median, replaced by the median of their valid neighbors.
+- Attenuation -ln(I / I0), with I0 measured in the air (regions of interest), given, or taken from the image; attenuation with a flat image; equivalent thickness of a material of known attenuation coefficient.
+- Step wedge thickness calibration: one region of interest per step, optional dark and flat frames, polynomial calibration that takes beam hardening into account (within 0.01 mm on the simulated wedge), calibration curve and thickness maps of the wedge and of other radiographs.

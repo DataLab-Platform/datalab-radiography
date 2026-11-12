@@ -8,16 +8,26 @@ contract version whenever a change alters the result.
 
 from __future__ import annotations
 
+import numpy as np
 from sigima.objects import ImageObj, TableResult
 from sigima.proc.contracts import EXACT, ReplayQualification
 from sigima.proc.decorator import computation_function
-from sigima.proc.image.base import dst_1_to_1
+from sigima.proc.image.base import dst_1_to_1, dst_2_to_1
 
 from .. import PLUGIN_ID
+from ..core import attenuation as core_attenuation
+from ..core import corrections as core_corrections
 from ..core import magnification as mag
 from ..core import metadata as md
+from . import corrections as wcorr
 from . import measurements as wmeas
 from . import objects
+from .corrections import (
+    AttenuationParam,
+    DefectivePixelParam,
+    FlatAttenuationParam,
+    ThicknessParam,
+)
 from .magnification import ExpressCoordinatesParam
 from .measurements import MeasurementReportParam
 
@@ -99,3 +109,130 @@ def measurement_report(src: ImageObj, p: MeasurementReportParam) -> TableResult 
         return None
     planes, rows = wmeas.measure(src, shapes, p.planes, p.unit)
     return wmeas.measurement_table(planes, rows, p.unit)
+
+
+# ---------------------------------------------------------------------------
+# Detector corrections and physical quantities
+# ---------------------------------------------------------------------------
+
+
+@computation_function(
+    operation_id=operation_id("defective_pixel_map"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+)
+def defective_pixel_map(src: ImageObj, p: DefectivePixelParam) -> ImageObj:
+    """Map the pixels deviating from their local median (1: defective).
+
+    Args:
+        src: image (raw radiograph, dark or flat frame)
+        p: detection parameters
+
+    Returns:
+        Map of the defective pixels (unsigned 8-bit integers)
+    """
+    dst = dst_1_to_1(src, "defective_pixel_map", f"threshold={p.threshold:g}")
+    mask = core_corrections.defective_pixel_map(src.data, p.size, p.threshold)
+    dst.data = mask.astype(np.uint8)
+    dst.zunit = ""
+    return dst
+
+
+@computation_function(
+    operation_id=operation_id("correct_defective_pixels"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+)
+def correct_defective_pixels(src: ImageObj, p: DefectivePixelParam) -> ImageObj:
+    """Replace the pixels deviating from their local median by this median.
+
+    Args:
+        src: image
+        p: detection parameters
+
+    Returns:
+        Corrected image (floating point values)
+    """
+    dst = dst_1_to_1(src, "correct_defective_pixels", f"threshold={p.threshold:g}")
+    mask = core_corrections.defective_pixel_map(src.data, p.size, p.threshold)
+    dst.data = core_corrections.correct_defective_pixels(src.data, mask, p.size)
+    return dst
+
+
+@computation_function(
+    operation_id=operation_id("attenuation"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+)
+def attenuation(src: ImageObj, p: AttenuationParam) -> ImageObj:
+    """Compute the attenuation -ln((I - offset) / I0) of a radiograph.
+
+    The free-beam intensity I0 is a value, the median of the image in its
+    regions of interest (placed in the air), or its 99.5th percentile.
+
+    Args:
+        src: radiograph
+        p: attenuation parameters
+
+    Returns:
+        Attenuation image (dimensionless)
+    """
+    free_beam = wcorr.free_beam_intensity(src, p)
+    dst = dst_1_to_1(src, "attenuation", f"I0={free_beam:.6g}")
+    dst.data = core_attenuation.attenuation(src.data - p.offset, free_beam)
+    dst.zunit = ""
+    return dst
+
+
+@computation_function(
+    operation_id=operation_id("attenuation_with_flat"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+)
+def attenuation_with_flat(
+    src1: ImageObj, src2: ImageObj, p: FlatAttenuationParam
+) -> ImageObj:
+    """Compute the attenuation -ln((I - offset) / (F - offset)) with a flat image.
+
+    Args:
+        src1: radiograph I
+        src2: flat image F (free beam, same detector and exposure)
+        p: offset
+
+    Returns:
+        Attenuation image (dimensionless)
+    """
+    if src1.data.shape != src2.data.shape:
+        raise ValueError("The radiograph and the flat image must have the same size")
+    dst = dst_2_to_1(src1, src2, "attenuation_with_flat")
+    flat = np.asarray(src2.data, dtype=float) - p.offset
+    flat = np.where(flat > 0, flat, np.nan)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        signal = np.asarray(src1.data, dtype=float) - p.offset
+        dst.data = np.where(signal > 0, -np.log(signal / flat), np.nan)
+    dst.zunit = ""
+    return dst
+
+
+@computation_function(
+    operation_id=operation_id("equivalent_thickness"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+)
+def equivalent_thickness(src: ImageObj, p: ThicknessParam) -> ImageObj:
+    """Convert an attenuation image to the equivalent thickness of a material.
+
+    Monochromatic approximation t = A / mu: beam hardening is ignored (use a
+    step wedge calibration to take it into account).
+
+    Args:
+        src: attenuation image
+        p: linear attenuation coefficient of the material
+
+    Returns:
+        Thickness image (mm)
+    """
+    dst = dst_1_to_1(src, "equivalent_thickness", f"mu={p.mu:g}/mm")
+    dst.data = core_attenuation.equivalent_thickness(src.data, p.mu)
+    dst.zunit = "mm"
+    return dst

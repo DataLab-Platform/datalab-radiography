@@ -10,6 +10,7 @@ from datalab.config import get_config_path
 from datalab.env import execenv
 from datalab.plugins import PluginBase, PluginCapability, PluginInfo
 from datalab.plugins.examples import PluginExample, PluginExampleData
+from datalab.plugins.recipes import RecipeDescriptor
 from datalab.plugins.tiles import WelcomeTile
 from qtpy import QtWidgets as QW
 
@@ -21,6 +22,7 @@ from ..workflow import RECIPES as WORKFLOW_RECIPES
 from ..workflow import features as wfeatures
 from ..workflow import magnification as wmag
 from ..workflow.parameters import SettingsParam
+from ..workflow.recipes import OFFSET_GAIN_RECIPE, STEP_WEDGE_RECIPE
 from ..workflow.settings import SettingsStore
 from .desktop_display import DisplayController
 from .desktop_magnification import (
@@ -239,6 +241,7 @@ class XRayRadiographyNDTPlugin(PluginBase):
         """Create the plugin menu of the image panel."""
         handler = self.imagepanel.acthandler
         display = self.display
+        self.recipe_actions: dict[str, QW.QAction] = {}
         with handler.new_menu(PLUGIN_NAME.replace("&", "&&")):
             with handler.new_menu(wfeatures.GROUP_DISPLAY):
                 self.apply_display_action = handler.new_action(
@@ -308,6 +311,12 @@ class XRayRadiographyNDTPlugin(PluginBase):
                     select_condition="exactly_one",
                 )
                 self._feature_actions(wfeatures.GROUP_MEASUREMENTS)
+            with handler.new_menu(wfeatures.GROUP_CORRECTIONS):
+                self._recipe_action(OFFSET_GAIN_RECIPE)
+                self._feature_actions(wfeatures.GROUP_CORRECTIONS)
+            with handler.new_menu(wfeatures.GROUP_PHYSICS):
+                self._feature_actions(wfeatures.GROUP_PHYSICS)
+                self._recipe_action(STEP_WEDGE_RECIPE, separator=True)
             self.settings_action = handler.new_action(
                 "Preferences...",
                 triggered=self.edit_settings,
@@ -334,3 +343,17 @@ class XRayRadiographyNDTPlugin(PluginBase):
             if feature.group == group:
                 actions.append(handler.action_for(feature.feature_id))
         return actions
+
+    def _recipe_action(
+        self, recipe: RecipeDescriptor, separator: bool = False
+    ) -> QW.QAction:
+        """Create the action running a recipe on the selected images."""
+        action = self.imagepanel.acthandler.new_action(
+            f"{recipe.title}...",
+            triggered=lambda: self.start_recipe(recipe.recipe_id),
+            tip=recipe.description,
+            select_condition="at_least_one",
+            separator=separator,
+        )
+        self.recipe_actions[recipe.recipe_id] = action
+        return action

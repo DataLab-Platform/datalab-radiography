@@ -9,16 +9,17 @@ radiographic display profile.
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from datalab.plugins.examples import PluginExample, PluginExampleData
-from sigima.objects import ImageObj, create_image
+from sigima.objects import ImageObj, create_image, create_image_roi
 
 from .core import metadata as md
 from .core import simulation as sim
 from .workflow import display as wdisplay
 from .workflow import magnification as wmag
 from .workflow import objects
+from .workflow.recipes import OFFSET_GAIN_RECIPE, STEP_WEDGE_RECIPE
 
 #: Largest number of pixels of one acquisition (all frames together)
 MAX_ACQUISITION_PIXELS = 30_000_000
@@ -111,6 +112,8 @@ class GeneratedExample:
         flats: number of flat frames
         seed: seed of the frame noise
         title: title of the radiographs
+        prepare: function completing the images (e.g. adding ROIs)
+        parameter_values: recipe parameter values suited to the example
     """
 
     example: PluginExample
@@ -123,6 +126,10 @@ class GeneratedExample:
     flats: int = 0
     seed: int = 0
     title: str = "Radiograph"
+    prepare: Callable[[list[ImageObj], sim.Simulation, sim.Scene], None] | None = None
+    parameter_values: Mapping[str, Mapping[str, object]] = dataclasses.field(
+        default_factory=dict
+    )
 
     def materialize(self) -> PluginExampleData:
         """Generate the images of the example."""
@@ -137,11 +144,52 @@ class GeneratedExample:
             self.flats,
             self.seed,
         )
-        return PluginExampleData(
-            simulation_images(
-                simulation, scene, self.geometry, self.detector, self.title
-            )
+        images = simulation_images(
+            simulation, scene, self.geometry, self.detector, self.title
         )
+        if self.prepare is not None:
+            self.prepare(images, simulation, scene)
+        return PluginExampleData(images, self.parameter_values)
+
+
+def plane_to_image(
+    image: ImageObj, truth: dict, plane: str, x_mm: float, y_mm: float
+) -> tuple[float, float]:
+    """Return the image coordinates of a point of a simulated object plane."""
+    factor = [p for p in truth["geometry"]["planes"] if p["name"] == plane][0][
+        "magnification"
+    ]
+    pitch = truth["detector"]["pitch_mm"]
+    rows, cols = image.data.shape
+    return (
+        x_mm * factor / pitch + (cols - 1) / 2,
+        y_mm * factor / pitch + (rows - 1) / 2,
+    )
+
+
+def _step_wedge_rois(
+    images: list[ImageObj], simulation: sim.Simulation, scene: sim.Scene
+) -> None:
+    """Add one ROI per step (inset from the step edges) to the radiograph."""
+    wedge = scene.components[0]
+    radiograph = images[0]
+    roi = None
+    for index, (x0, x1, y0, y1) in enumerate(wedge.step_boxes(), start=1):
+        inset_x, inset_y = 0.2 * (x1 - x0), 0.2 * (y1 - y0)
+        xa, ya = plane_to_image(
+            radiograph, simulation.truth, wedge.plane, x0 + inset_x, y0 + inset_y
+        )
+        xb, yb = plane_to_image(
+            radiograph, simulation.truth, wedge.plane, x1 - inset_x, y1 - inset_y
+        )
+        single = create_image_roi(
+            "rectangle", [xa, ya, xb - xa, yb - ya], title=f"Step {index}"
+        )
+        if roi is None:
+            roi = single
+        else:
+            roi.add_roi(single.single_rois[0])
+    radiograph.roi = roi
 
 
 WELD_EXAMPLE = PluginExample(
@@ -163,7 +211,11 @@ PIPE_EXAMPLE = PluginExample(
 STEP_WEDGE_EXAMPLE = PluginExample(
     id="simulated-step-wedge",
     title="Simulated step wedge",
-    description="Aluminum step wedge of 2 to 20 mm, to calibrate thickness",
+    description=(
+        "Aluminum step wedge of 2 to 20 mm with one ROI per step, and dark and "
+        "flat frames, to calibrate thickness"
+    ),
+    recipe_ids=(STEP_WEDGE_RECIPE.recipe_id,),
 )
 CAMPAIGN_EXAMPLE = PluginExample(
     id="simulated-campaign",
@@ -172,6 +224,7 @@ CAMPAIGN_EXAMPLE = PluginExample(
         "Radiographs of a cast plate with dark and flat frames, on a detector "
         "with non-uniform gain and defective pixels"
     ),
+    recipe_ids=(OFFSET_GAIN_RECIPE.recipe_id,),
 )
 
 GENERATED_EXAMPLES: dict[str, GeneratedExample] = {
@@ -196,8 +249,18 @@ GENERATED_EXAMPLES: dict[str, GeneratedExample] = {
         sim.Detector(rows=300, cols=520),
         geometry=sim.Geometry(voltage_kv=80.0),
         exposure=sim.Exposure(photons_per_pixel=8000.0, frames=4),
+        darks=4,
+        flats=4,
         seed=2,
         title="Step wedge",
+        prepare=_step_wedge_rois,
+        parameter_values={
+            STEP_WEDGE_RECIPE.recipe_id: {
+                "thicknesses": ", ".join(str(t) for t in range(2, 22, 2)),
+                "unit": "mm",
+                "degree": 2,
+            }
+        },
     ),
     CAMPAIGN_EXAMPLE.id: GeneratedExample(
         CAMPAIGN_EXAMPLE,
