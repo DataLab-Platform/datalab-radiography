@@ -160,7 +160,7 @@ class DisplayController:
                 done.append(obj)
         self._refresh(done)
         if errors:
-            self.plugin.show_warning("\n".join(errors))
+            self.plugin.warn("\n".join(errors))
         return done
 
     def apply_profile_to_selection(self) -> list[ImageObj]:

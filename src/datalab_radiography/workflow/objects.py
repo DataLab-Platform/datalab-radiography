@@ -5,7 +5,23 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from sigima.objects import ImageObj
+import numpy as np
+from sigima.objects import (
+    CircularROI,
+    ImageObj,
+    ImageROI,
+    RectangularROI,
+    create_image_roi,
+)
+from sigima.objects.annotations import (
+    AnnotationTransformError,
+    PolygonAnnotation,
+    RectangleAnnotation,
+    annotation_from_dict,
+    annotation_to_dict,
+    is_graphical_annotation_dict,
+    scale_annotation,
+)
 
 from ..core import magnification as mag
 from ..core import metadata as md
@@ -123,3 +139,124 @@ def set_frame_role(obj: ImageObj, role: str) -> None:
     if role not in md.FRAME_ROLES:
         raise ValueError(f"Frame role must be one of {md.FRAME_ROLES}")
     obj.metadata[md.FRAME_ROLE_KEY] = role
+
+
+def _circle_polygon(xc: float, yc: float, rx: float, ry: float) -> np.ndarray:
+    """Return the vertices of an ellipse approximated by a 64-gon."""
+    angles = np.linspace(0.0, 2.0 * np.pi, 64, endpoint=False)
+    return np.column_stack([xc + rx * np.cos(angles), yc + ry * np.sin(angles)])
+
+
+def _scaled_roi(obj: ImageObj, fx: float, fy: float) -> ImageROI | None:
+    """Return the ROIs of an image after its coordinates are multiplied."""
+    if obj.roi is None or obj.roi.is_empty():
+        return obj.roi
+    scaled = ImageROI()
+    for roi in obj.roi.single_rois:
+        if roi.indices:
+            # Pixel-index ROIs keep their pixels
+            scaled.add_roi(roi)
+            continue
+        coords = np.asarray(roi.coords, dtype=float)
+        if isinstance(roi, RectangularROI):
+            new = create_image_roi(
+                "rectangle",
+                coords * [fx, fy, fx, fy],
+                title=roi.title,
+                inverse=roi.inverse,
+            )
+        elif isinstance(roi, CircularROI):
+            xc, yc, radius = coords
+            if np.isclose(fx, fy):
+                new = create_image_roi(
+                    "circle",
+                    [xc * fx, yc * fy, radius * fx],
+                    title=roi.title,
+                    inverse=roi.inverse,
+                )
+            else:
+                polygon = _circle_polygon(xc * fx, yc * fy, radius * fx, radius * fy)
+                new = create_image_roi(
+                    "polygon", polygon.ravel(), title=roi.title, inverse=roi.inverse
+                )
+        else:
+            points = coords.reshape(-1, 2) * [fx, fy]
+            new = create_image_roi(
+                "polygon", points.ravel(), title=roi.title, inverse=roi.inverse
+            )
+        for single in new.single_rois:
+            scaled.add_roi(single)
+    return scaled
+
+
+def _scaled_annotations(
+    annotations: list[dict], fx: float, fy: float
+) -> tuple[list[dict], int]:
+    """Return annotations after the coordinates are multiplied.
+
+    Returns:
+        Scaled annotations, and the number of annotations that could not be
+        converted (kept unchanged)
+    """
+    result, skipped = [], 0
+    for data in annotations:
+        if not is_graphical_annotation_dict(data):
+            result.append(data)
+            skipped += 1
+            continue
+        annotation = annotation_from_dict(data)
+        try:
+            scaled = scale_annotation(annotation, fx, fy)
+        except AnnotationTransformError:
+            # A rotated rectangle scaled anisotropically becomes a parallelogram
+            corners = _rectangle_corners(annotation)
+            scaled = PolygonAnnotation(
+                id=annotation.id,
+                visible=annotation.visible,
+                locked=annotation.locked,
+                z_index=annotation.z_index,
+                title=annotation.title,
+                style=annotation.style,
+                label=annotation.label,
+                metadata=annotation.metadata,
+                points=tuple((x * fx, y * fy) for x, y in corners),
+            )
+        result.append(annotation_to_dict(scaled))
+    return result, skipped
+
+
+def _rectangle_corners(annotation: RectangleAnnotation) -> list[tuple[float, float]]:
+    """Return the corners of a rotated rectangle annotation."""
+    cos_a, sin_a = np.cos(annotation.angle), np.sin(annotation.angle)
+    corners = []
+    for u, v in ((0, 0), (1, 0), (1, 1), (0, 1)):
+        du, dv = u * annotation.width, v * annotation.height
+        corners.append(
+            (
+                annotation.x + du * cos_a - dv * sin_a,
+                annotation.y + du * sin_a + dv * cos_a,
+            )
+        )
+    return corners
+
+
+def scale_coordinates(obj: ImageObj, fx: float, fy: float) -> int:
+    """Multiply the coordinates of an image, keeping its ROIs and annotations.
+
+    Args:
+        obj: image (changed in place)
+        fx: factor applied to X coordinates
+        fy: factor applied to Y coordinates
+
+    Returns:
+        Number of annotations that could not be converted
+    """
+    roi = _scaled_roi(obj, fx, fy)
+    if obj.is_uniform_coords:
+        obj.set_uniform_coords(obj.dx * fx, obj.dy * fy, obj.x0 * fx, obj.y0 * fy)
+    else:
+        obj.set_coords(np.asarray(obj.xcoords) * fx, np.asarray(obj.ycoords) * fy)
+    obj.roi = roi
+    annotations, skipped = _scaled_annotations(obj.get_annotations(), fx, fy)
+    obj.set_annotations(annotations)
+    return skipped

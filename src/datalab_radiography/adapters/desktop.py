@@ -2,20 +2,31 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import os.path as osp
 
 from datalab.config import get_config_path
+from datalab.env import execenv
 from datalab.plugins import PluginBase, PluginCapability, PluginInfo
+from qtpy import QtWidgets as QW
 
 from .. import PLUGIN_DESCRIPTION, PLUGIN_ID, PLUGIN_NAME, __version__
 from ..workflow import RECIPES as WORKFLOW_RECIPES
+from ..workflow import features as wfeatures
+from ..workflow import magnification as wmag
 from ..workflow.parameters import SettingsParam
 from ..workflow.settings import SettingsStore
 from .desktop_display import DisplayController
+from .desktop_magnification import (
+    MagnificationManagerDialog,
+    show_geometry_calculator,
+)
 
 PLUGIN_ICON = "datalab_radiography:icons/radiography.svg"
 DOCUMENTATION_URL = "https://github.com/DataLab-Platform/datalab-radiography"
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class XRayRadiographyNDTPlugin(PluginBase):
@@ -46,10 +57,66 @@ class XRayRadiographyNDTPlugin(PluginBase):
         self.settings_store = SettingsStore(path)
         self.display = DisplayController(self)
 
+    # -- Messages ---------------------------------------------------------
+
+    def inform(self, message: str, title: str | None = None) -> None:
+        """Show an information message (logged only in unattended mode)."""
+        if execenv.unattended:
+            _LOGGER.info("%s", message)
+            return
+        QW.QMessageBox.information(self.main, title or PLUGIN_NAME, message)
+
+    def warn(self, message: str, title: str | None = None) -> None:
+        """Show a warning message (logged only in unattended mode)."""
+        if execenv.unattended:
+            _LOGGER.warning("%s", message)
+            return
+        QW.QMessageBox.warning(self.main, title or PLUGIN_NAME, message)
+
     # -- Registration -----------------------------------------------------
 
     def register_computations(self) -> None:
-        """Watch new images once the panels exist."""
+        """Register the processing features and watch new images."""
+        processor = self.imagepanel.processor
+        for feature in wfeatures.features_for(wfeatures.HOST_DESKTOP):
+            options = {
+                "feature_id": feature.feature_id,
+                "owner_plugin_id": self.plugin_id,
+            }
+            if feature.pattern == wfeatures.PATTERN_1_TO_1:
+                processor.register_1_to_1(
+                    feature.function,
+                    feature.title,
+                    paramclass=feature.paramclass,
+                    comment=feature.comment,
+                    preview_enabled=feature.preview,
+                    **options,
+                )
+            elif feature.pattern == wfeatures.PATTERN_1_TO_0:
+                processor.register_1_to_0(
+                    feature.function,
+                    feature.title,
+                    paramclass=feature.paramclass,
+                    comment=feature.comment,
+                    **options,
+                )
+            elif feature.pattern == wfeatures.PATTERN_2_TO_1:
+                processor.register_2_to_1(
+                    feature.function,
+                    feature.title,
+                    paramclass=feature.paramclass,
+                    comment=feature.comment,
+                    obj2_name=feature.obj2_name,
+                    **options,
+                )
+            else:
+                processor.register_n_to_1(
+                    feature.function,
+                    feature.title,
+                    paramclass=feature.paramclass,
+                    comment=feature.comment,
+                    **options,
+                )
         self.display.connect()
 
     def unregister_hooks(self) -> None:
@@ -65,17 +132,62 @@ class XRayRadiographyNDTPlugin(PluginBase):
         if not param.edit(parent=self.main):
             return False
         self.settings_store.update(**param.to_values())
+        self.film_convention_action.blockSignals(True)
         self.film_convention_action.setChecked(
             self.settings_store.settings.film_convention
         )
+        self.film_convention_action.blockSignals(False)
         return True
+
+    def magnification_manager(self) -> MagnificationManagerDialog | None:
+        """Open the magnification manager of the current image."""
+        obj = self.imagepanel.objview.get_current_object()
+        if obj is None:
+            return None
+        dialog = MagnificationManagerDialog(self, obj)
+        if not execenv.unattended:
+            dialog.exec()
+            self._after_metadata_change(dialog.changed)
+        return dialog
+
+    def _after_metadata_change(self, changed: bool) -> None:
+        """Refresh the panel after the plugin changed image metadata."""
+        if changed:
+            self.imagepanel.refresh_plot("selected", True, False)
+            self.imagepanel.SIG_OBJECT_MODIFIED.emit()
+
+    def set_detector_pitch(
+        self, param: wmag.DetectorPitchParam | None = None
+    ) -> tuple[float, float] | None:
+        """Set the detector pixel pitch of the selected images."""
+        images = self.display.selected_images()
+        if not images:
+            return None
+        if param is None:
+            param = wmag.detector_pitch_param(
+                images[0], self.settings_store.settings.detector_pitch_mm
+            )
+            if not param.edit(parent=self.main):
+                return None
+        pitch = None
+        for obj in images:
+            pitch = wmag.set_detector_pitch(obj, param)
+        self.settings_store.update(detector_pitch_mm=pitch[0])
+        self._after_metadata_change(True)
+        return pitch
+
+    def geometry_calculator(
+        self, param: wmag.GeometryCalculatorParam | None = None
+    ) -> list[tuple[str, str]] | None:
+        """Open the radiographic geometry calculator."""
+        return show_geometry_calculator(self, param)
 
     def create_actions(self) -> None:
         """Create the plugin menu of the image panel."""
         handler = self.imagepanel.acthandler
         display = self.display
         with handler.new_menu(PLUGIN_NAME.replace("&", "&&")):
-            with handler.new_menu("Display"):
+            with handler.new_menu(wfeatures.GROUP_DISPLAY):
                 self.apply_display_action = handler.new_action(
                     "Apply radiographic display",
                     triggered=display.apply_profile_to_selection,
@@ -115,9 +227,38 @@ class XRayRadiographyNDTPlugin(PluginBase):
                     tip="Percentiles, DICOM attributes, or level and width",
                     select_condition="at_least_one",
                 )
+            with handler.new_menu(wfeatures.GROUP_MAGNIFICATION):
+                self.magnification_action = handler.new_action(
+                    "Magnifications...",
+                    triggered=self.magnification_manager,
+                    tip="Define, choose and copy the magnifications of the image",
+                    select_condition="exactly_one",
+                )
+                self.pitch_action = handler.new_action(
+                    "Detector pixel pitch...",
+                    triggered=self.set_detector_pitch,
+                    select_condition="at_least_one",
+                )
+                self._feature_actions(wfeatures.GROUP_MAGNIFICATION)
+                self.calculator_action = handler.new_action(
+                    "Geometry calculator...",
+                    triggered=self.geometry_calculator,
+                    tip="Magnification, unsharpness and optimal magnification",
+                    select_condition="always",
+                    separator=True,
+                )
             self.settings_action = handler.new_action(
                 "Preferences...",
                 triggered=self.edit_settings,
                 select_condition="always",
                 separator=True,
             )
+
+    def _feature_actions(self, group: str) -> list[QW.QAction]:
+        """Create the actions of the registered features of a menu group."""
+        handler = self.imagepanel.acthandler
+        actions = []
+        for feature in wfeatures.features_for(wfeatures.HOST_DESKTOP):
+            if feature.group == group:
+                actions.append(handler.action_for(feature.feature_id))
+        return actions

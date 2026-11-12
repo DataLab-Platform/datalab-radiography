@@ -94,7 +94,7 @@ class FeatureSpec:
         return f"Plugins/{PLUGIN_NAME}/{self.group}/{self.title}"
 
 
-#: Features of the plugin, in menu order
+#: Features of the plugin, in menu order (filled below)
 FEATURES: tuple[FeatureSpec, ...] = ()
 
 
@@ -105,7 +105,7 @@ def features_for(host: str) -> tuple[FeatureSpec, ...]:
     return tuple(feature for feature in FEATURES if host in feature.hosts)
 
 
-def check_catalog(features: tuple[FeatureSpec, ...] = FEATURES) -> None:
+def check_catalog(features: tuple[FeatureSpec, ...] = ()) -> None:
     """Check that feature identifiers are unique.
 
     Raises:
@@ -116,3 +116,27 @@ def check_catalog(features: tuple[FeatureSpec, ...] = FEATURES) -> None:
         if feature.local_id in seen:
             raise ValueError(f"Duplicate feature {feature.local_id!r}")
         seen.add(feature.local_id)
+
+
+def _catalog() -> tuple[FeatureSpec, ...]:
+    """Return the features of the plugin, in menu order."""
+    # pylint: disable=import-outside-toplevel
+    from . import computations as comp
+    from . import magnification as wmag
+
+    return (
+        FeatureSpec(
+            "express-coordinates",
+            "Express coordinates in a plane",
+            GROUP_MAGNIFICATION,
+            PATTERN_1_TO_1,
+            comp.express_coordinates,
+            wmag.ExpressCoordinatesParam,
+            preview=False,
+            comment="Coordinates in an object plane, the detector plane or pixels",
+        ),
+    )
+
+
+FEATURES = _catalog()
+check_catalog(FEATURES)
