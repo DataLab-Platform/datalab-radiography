@@ -9,9 +9,14 @@ import os.path as osp
 from datalab.config import get_config_path
 from datalab.env import execenv
 from datalab.plugins import PluginBase, PluginCapability, PluginInfo
+from datalab.plugins.examples import PluginExample, PluginExampleData
+from datalab.plugins.tiles import WelcomeTile
 from qtpy import QtWidgets as QW
 
 from .. import PLUGIN_DESCRIPTION, PLUGIN_ID, PLUGIN_NAME, __version__
+from ..demo import EXAMPLES as DEMO_EXAMPLES
+from ..demo import WELD_EXAMPLE, materialize_generated_example
+from ..simulator import SIMULATOR_TOOL, RadiographySimulator
 from ..workflow import RECIPES as WORKFLOW_RECIPES
 from ..workflow import features as wfeatures
 from ..workflow import magnification as wmag
@@ -25,6 +30,7 @@ from .desktop_magnification import (
 from .desktop_measure import MeasurementTool
 
 PLUGIN_ICON = "datalab_radiography:icons/radiography.svg"
+DEMO_ICON = "datalab_radiography:icons/radiography_demo.svg"
 DOCUMENTATION_URL = "https://github.com/DataLab-Platform/datalab-radiography"
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,6 +53,23 @@ class XRayRadiographyNDTPlugin(PluginBase):
         documentation_url=DOCUMENTATION_URL,
     )
     RECIPES = WORKFLOW_RECIPES
+    EXAMPLES = DEMO_EXAMPLES
+    TOOLS = (SIMULATOR_TOOL,)
+    WELCOME_TILES = (
+        WelcomeTile(
+            id="application",
+            title=PLUGIN_NAME,
+            description=PLUGIN_DESCRIPTION,
+            icon=PLUGIN_ICON,
+        ),
+        WelcomeTile(
+            id="weld-example",
+            title="Open simulated weld",
+            description="Weld radiograph with pores, IQIs and a calibration ball",
+            icon=DEMO_ICON,
+            launcher="open_weld_example",
+        ),
+    )
     #: Environment variable overriding the preference file (used by the tests)
     SETTINGS_ENV = "DATALAB_RADIOGRAPHY_SETTINGS"
 
@@ -73,6 +96,22 @@ class XRayRadiographyNDTPlugin(PluginBase):
             _LOGGER.warning("%s", message)
             return
         QW.QMessageBox.warning(self.main, title or PLUGIN_NAME, message)
+
+    # -- Examples and tools -----------------------------------------------
+
+    @classmethod
+    def materialize_example(cls, example_id: str) -> PluginExampleData | None:
+        """Generate the simulated examples in memory."""
+        cls.get_example(example_id)
+        return materialize_generated_example(example_id)
+
+    def xray_simulator(self) -> RadiographySimulator:
+        """Return a new radiography simulator."""
+        return RadiographySimulator()
+
+    def open_weld_example(self) -> PluginExample | None:
+        """Open the simulated weld example."""
+        return self.launch_example(WELD_EXAMPLE.id)
 
     # -- Registration -----------------------------------------------------
 
@@ -275,6 +314,17 @@ class XRayRadiographyNDTPlugin(PluginBase):
                 select_condition="always",
                 separator=True,
             )
+            with handler.new_menu("Examples"):
+                self.example_actions = {}
+                for example in self.get_examples():
+                    self.example_actions[example.id] = handler.new_action(
+                        f"{example.title}...",
+                        triggered=lambda _checked=False, eid=example.id: (
+                            self.launch_example(eid)
+                        ),
+                        tip=example.description,
+                        select_condition="always",
+                    )
 
     def _feature_actions(self, group: str) -> list[QW.QAction]:
         """Create the actions of the registered features of a menu group."""

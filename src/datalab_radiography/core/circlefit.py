@@ -273,19 +273,20 @@ def refine_model(
     )
     background = float(np.median(region[radial > radius + 2]))
     inside = float(np.median(region[radial < 0.3 * radius]))
-    darker = inside < background
-    if darker and (background <= 0 or inside <= 0):
-        darker = False
-    if darker:
+    # Exponential model (raw intensities, with a detector offset), or linear
+    # model (attenuation images, whose background may be zero or negative)
+    exponential = background > 0 and inside > 0
+    if exponential:
         contrast = math.log(background / inside)
     else:
         contrast = inside - background
     start = np.array(
-        [row - r0, col - c0, radius, background, 0.0, 0.0, contrast, 1.0], dtype=float
+        [row - r0, col - c0, radius, background, 0.0, 0.0, contrast, 1.0, 0.0],
+        dtype=float,
     )
 
     def model(params: np.ndarray) -> np.ndarray:
-        prow, pcol, prad, base, slope_y, slope_x, amplitude, sigma = params
+        prow, pcol, prad, base, slope_y, slope_x, amplitude, sigma, offset = params
         distance = np.hypot(rows - prow, cols - pcol)
         if shape == SHAPE_SPHERE:
             thickness = np.sqrt(np.clip(1.0 - (distance / prad) ** 2, 0.0, None))
@@ -300,8 +301,8 @@ def refine_model(
             + slope_y * (np.arange(region.shape[0])[:, None] - prow)
             + slope_x * (np.arange(region.shape[1])[None, :] - pcol)
         )
-        if darker:
-            image = plane * np.exp(-amplitude * thickness)
+        if exponential:
+            image = offset + plane * np.exp(-amplitude * thickness)
         else:
             image = plane + amplitude * thickness
         return ndimage.gaussian_filter(image, abs(sigma))
@@ -309,8 +310,12 @@ def refine_model(
     def residuals(params: np.ndarray) -> np.ndarray:
         return (model(params) - region).ravel()
 
-    lower = [-np.inf, -np.inf, 2.0, -np.inf, -np.inf, -np.inf, -np.inf, 0.05]
-    upper = [np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, 20.0]
+    lower = [-np.inf, -np.inf, 2.0, -np.inf, -np.inf, -np.inf, -np.inf, 0.05, -np.inf]
+    upper = [np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, 20.0, np.inf]
+    if not exponential or shape != SHAPE_SPHERE:
+        # The offset is part of the background plane of the linear model, and
+        # cannot be told from the amplitude for a disk (two levels only)
+        lower[-1], upper[-1] = -1e-12, 1e-12
     try:
         result = optimize.least_squares(
             residuals, start, bounds=(lower, upper), x_scale="jac", diff_step=1e-4

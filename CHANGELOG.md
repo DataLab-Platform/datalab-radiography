@@ -27,3 +27,8 @@ Measurements:
 
 - Measurement tool: distances, polylines (with the angle of three points), circles, ellipses, rectangles, polygons and points drawn on the radiograph, measured live in image coordinates, in the detector plane and in the object plane of each magnification (areas divided by M²). The table can be copied, exported to CSV, attached to the image as a DataLab result, and the shapes kept as annotations titled with their values.
 - Measurement report: the same table for the annotations and regions of interest of the selected images, as a DataLab analysis.
+
+Simulator and examples:
+
+- X-ray radiography simulator, with a live view: butt weld with pores, a crack, wire and duplex image quality indicators (ISO 19232-1 and -5) and a calibration ball; pipe seen tangentially; aluminum step wedge; cast plate with pores. Each object plane has its own magnification and geometric unsharpness; the detector adds blur, a heel effect, gain and offset non-uniformity, Poisson and read noise, defective pixels and saturation. Acquisitions add radiographs, dark and flat frames with their geometry, magnifications and ground truth.
+- Simulated examples: weld (two magnifications), pipe (two magnifications), step wedge, and a correction campaign with dark and flat frames. A welcome page tile opens the weld example.
