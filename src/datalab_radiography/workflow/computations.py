@@ -9,6 +9,7 @@ contract version whenever a change alters the result.
 from __future__ import annotations
 
 import numpy as np
+from scipy import ndimage
 from sigima.objects import ImageObj, TableResult
 from sigima.proc.contracts import EXACT, ReplayQualification
 from sigima.proc.decorator import computation_function
@@ -17,9 +18,12 @@ from sigima.proc.image.base import dst_1_to_1, dst_2_to_1
 from .. import PLUGIN_ID
 from ..core import attenuation as core_attenuation
 from ..core import corrections as core_corrections
+from ..core import display as core_display
+from ..core import enhancement as core_enhancement
 from ..core import magnification as mag
 from ..core import metadata as md
 from . import corrections as wcorr
+from . import enhancement as wenh
 from . import measurements as wmeas
 from . import objects
 from .corrections import (
@@ -27,6 +31,13 @@ from .corrections import (
     DefectivePixelParam,
     FlatAttenuationParam,
     ThicknessParam,
+)
+from .enhancement import (
+    FlattenBackgroundParam,
+    RadiographicClaheParam,
+    RadiographicDenoiseParam,
+    RobustAverageParam,
+    UnsharpMaskParam,
 )
 from .magnification import ExpressCoordinatesParam
 from .measurements import MeasurementReportParam
@@ -235,4 +246,158 @@ def equivalent_thickness(src: ImageObj, p: ThicknessParam) -> ImageObj:
     dst = dst_1_to_1(src, "equivalent_thickness", f"mu={p.mu:g}/mm")
     dst.data = core_attenuation.equivalent_thickness(src.data, p.mu)
     dst.zunit = "mm"
+    return dst
+
+
+# ---------------------------------------------------------------------------
+# Enhancement
+# ---------------------------------------------------------------------------
+
+
+@computation_function(
+    operation_id=operation_id("flatten_background"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+    reads_metadata={"src": _FRAME_METADATA},
+)
+def flatten_background(src: ImageObj, p: FlattenBackgroundParam) -> ImageObj:
+    """Remove the large-scale background (thickness variations, heel effect).
+
+    Args:
+        src: radiograph
+        p: background size and method
+
+    Returns:
+        Flattened radiograph, at the mean level of the source
+    """
+    size = wenh.pixel_sizes(src, p.size, p.unit)
+    dst = dst_1_to_1(src, "flatten_background", f"size={p.size:g} {p.unit}")
+    dst.data = core_enhancement.flatten_background(src.data, size, p.method, p.mode)
+    return dst
+
+
+@computation_function(
+    operation_id=operation_id("unsharp_mask"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+    reads_metadata={"src": _FRAME_METADATA},
+)
+def unsharp_mask(src: ImageObj, p: UnsharpMaskParam) -> ImageObj:
+    """Enhance small details such as pores and cracks.
+
+    Args:
+        src: radiograph
+        p: detail size and amount
+
+    Returns:
+        Enhanced radiograph
+    """
+    sigma = wenh.pixel_sizes(src, p.sigma, p.unit)
+    dst = dst_1_to_1(src, "unsharp_mask", f"sigma={p.sigma:g} {p.unit}")
+    dst.data = core_enhancement.unsharp_mask(src.data, sigma, p.amount)
+    return dst
+
+
+@computation_function(
+    operation_id=operation_id("radiographic_clahe"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+    reads_metadata={"src": _FRAME_METADATA},
+)
+def radiographic_clahe(src: ImageObj, p: RadiographicClaheParam) -> ImageObj:
+    """Adaptive histogram equalization tuned for radiographs.
+
+    The image is first normalized between two percentiles (ignoring the
+    saturated free beam), then equalized by tiles of a physical size.
+
+    Args:
+        src: radiograph
+        p: tile size, clipping limit and normalization percentiles
+
+    Returns:
+        Equalized radiograph (values between 0 and 1)
+    """
+    # pylint: disable=import-outside-toplevel
+    from skimage import exposure
+
+    sx, sy = wenh.pixel_sizes(src, p.tile_size, p.unit)
+    window = core_display.percentile_window(
+        src.data, p.low_percentile, p.high_percentile
+    )
+    normalized = core_enhancement.normalize(src.data, window.low, window.high)
+    kernel = (max(int(round(sy)), 2), max(int(round(sx)), 2))
+    dst = dst_1_to_1(src, "radiographic_clahe", f"clip={p.clip_limit:g}")
+    dst.data = exposure.equalize_adapthist(
+        normalized, kernel_size=kernel, clip_limit=p.clip_limit
+    )
+    dst.zunit = ""
+    return dst
+
+
+@computation_function(
+    operation_id=operation_id("radiographic_denoise"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+    reads_metadata={"src": _FRAME_METADATA},
+)
+def radiographic_denoise(src: ImageObj, p: RadiographicDenoiseParam) -> ImageObj:
+    """Reduce the noise of a radiograph with a preset suited to its origin.
+
+    Args:
+        src: radiograph
+        p: method, size and strength
+
+    Returns:
+        Denoised radiograph
+    """
+    data = np.asarray(src.data, dtype=float)
+    dst = dst_1_to_1(src, "radiographic_denoise", p.method)
+    if p.method == wenh.DENOISE_MEDIAN:
+        sx, sy = wenh.pixel_sizes(src, p.size, p.unit)
+        size = (max(int(round(sy)) | 1, 3), max(int(round(sx)) | 1, 3))
+        dst.data = ndimage.median_filter(data, size=size, mode="nearest")
+    elif p.method == wenh.DENOISE_GAUSSIAN:
+        sx, sy = wenh.pixel_sizes(src, p.size, p.unit)
+        dst.data = ndimage.gaussian_filter(data, (sy, sx), mode="nearest")
+    else:
+        # pylint: disable=import-outside-toplevel
+        from skimage import restoration
+
+        window = core_display.percentile_window(
+            data, 0.0, 100.0, exclude_saturation=False
+        )
+        span = window.high - window.low
+        normalized = (data - window.low) / span
+        if p.method == wenh.DENOISE_TV:
+            result = restoration.denoise_tv_chambolle(normalized, weight=p.weight)
+        else:
+            sx, sy = wenh.pixel_sizes(src, p.size, p.unit)
+            result = restoration.denoise_bilateral(
+                normalized, sigma_color=p.weight, sigma_spatial=0.5 * (sx + sy)
+            )
+        dst.data = result * span + window.low
+    return dst
+
+
+@computation_function(
+    operation_id=operation_id("robust_average"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+)
+def robust_average(src_list: list[ImageObj], p: RobustAverageParam) -> ImageObj:
+    """Average frames, rejecting outliers such as direct photon hits.
+
+    Args:
+        src_list: frames of the same size
+        p: method and rejection threshold
+
+    Returns:
+        Average frame
+    """
+    if not src_list:
+        raise ValueError("Select the frames to average")
+    dst = dst_1_to_1(src_list[0], "robust_average", f"{len(src_list)} frames")
+    dst.data = core_enhancement.robust_average(
+        [src.data for src in src_list], p.method, p.threshold
+    )
     return dst

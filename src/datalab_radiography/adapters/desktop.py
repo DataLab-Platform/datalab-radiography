@@ -317,6 +317,8 @@ class XRayRadiographyNDTPlugin(PluginBase):
             with handler.new_menu(wfeatures.GROUP_PHYSICS):
                 self._feature_actions(wfeatures.GROUP_PHYSICS)
                 self._recipe_action(STEP_WEDGE_RECIPE, separator=True)
+            with handler.new_menu(wfeatures.GROUP_ENHANCEMENT):
+                self._feature_actions(wfeatures.GROUP_ENHANCEMENT)
             self.settings_action = handler.new_action(
                 "Preferences...",
                 triggered=self.edit_settings,

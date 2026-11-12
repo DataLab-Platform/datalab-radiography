@@ -39,3 +39,12 @@ Detector corrections and physical quantities:
 - Defective pixel map and correction: pixels deviating from their local median, replaced by the median of their valid neighbors.
 - Attenuation -ln(I / I0), with I0 measured in the air (regions of interest), given, or taken from the image; attenuation with a flat image; equivalent thickness of a material of known attenuation coefficient.
 - Step wedge thickness calibration: one region of interest per step, optional dark and flat frames, polynomial calibration that takes beam hardening into account (within 0.01 mm on the simulated wedge), calibration curve and thickness maps of the wedge and of other radiographs.
+
+Enhancement:
+
+- Sizes are given in pixels or in a length unit of the object plane of the active magnification (or of the detector plane when the image has no magnification).
+- Flatten background: removes thickness variations and the heel effect, by a Gaussian background, or by a morphological background that keeps steps of thickness, so that indications of thin and thick regions share one display window (pores of a simulated stepped casting become 3 to 6 times more visible). Gradients are followed up to the borders of the image.
+- Unsharp mask, to enhance details smaller than a given size, such as pores and cracks.
+- Adaptive equalization (CLAHE) tuned for radiographs: normalization between two percentiles ignoring the free beam, then equalization by tiles of a given size.
+- Denoise with presets: median (direct photon hits), Gaussian, total variation or bilateral (edges kept).
+- Robust frame averaging: mean, median, or mean with rejection of outliers such as direct photon hits.

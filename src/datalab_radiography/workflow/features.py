@@ -123,6 +123,7 @@ def _catalog() -> tuple[FeatureSpec, ...]:
     # pylint: disable=import-outside-toplevel
     from . import computations as comp
     from . import corrections as wcorr
+    from . import enhancement as wenh
     from . import magnification as wmag
     from . import measurements as wmeas
 
@@ -191,6 +192,51 @@ def _catalog() -> tuple[FeatureSpec, ...]:
             comp.equivalent_thickness,
             wcorr.ThicknessParam,
             comment="Thickness of a material from an attenuation image",
+        ),
+        FeatureSpec(
+            "flatten-background",
+            "Flatten background",
+            GROUP_ENHANCEMENT,
+            PATTERN_1_TO_1,
+            comp.flatten_background,
+            wenh.FlattenBackgroundParam,
+            comment="Remove thickness variations and the heel effect",
+        ),
+        FeatureSpec(
+            "unsharp-mask",
+            "Unsharp mask",
+            GROUP_ENHANCEMENT,
+            PATTERN_1_TO_1,
+            comp.unsharp_mask,
+            wenh.UnsharpMaskParam,
+            comment="Enhance small details such as pores and cracks",
+        ),
+        FeatureSpec(
+            "radiographic-clahe",
+            "Adaptive equalization (CLAHE)",
+            GROUP_ENHANCEMENT,
+            PATTERN_1_TO_1,
+            comp.radiographic_clahe,
+            wenh.RadiographicClaheParam,
+            comment="Local contrast enhancement tuned for radiographs",
+        ),
+        FeatureSpec(
+            "radiographic-denoise",
+            "Denoise",
+            GROUP_ENHANCEMENT,
+            PATTERN_1_TO_1,
+            comp.radiographic_denoise,
+            wenh.RadiographicDenoiseParam,
+            comment="Median, Gaussian, total variation or bilateral denoising",
+        ),
+        FeatureSpec(
+            "robust-average",
+            "Robust frame averaging",
+            GROUP_ENHANCEMENT,
+            PATTERN_N_TO_1,
+            comp.robust_average,
+            wenh.RobustAverageParam,
+            comment="Average frames, rejecting direct photon hits",
         ),
     )
 
