@@ -14,6 +14,7 @@ from datalab.plugins.recipes import RECIPE_RUN_RECORD_OPTION
 from datalab_radiography.core import metadata as md
 from datalab_radiography.workflow import correction_recipes as recipes
 from datalab_radiography.workflow import corrections as wcorr
+from datalab_radiography.workflow.recipes import RECIPES
 
 from .helpers import radiography_app, the_plugin
 
@@ -23,10 +24,7 @@ def test_offset_gain_recipe_in_desktop(tmp_path) -> None:
     filename = os.fspath(tmp_path / "corrections.h5")
     with radiography_app() as window:
         plugin = the_plugin()
-        assert set(plugin.recipe_actions) == {
-            recipes.OFFSET_GAIN_RECIPE.recipe_id,
-            recipes.STEP_WEDGE_RECIPE.recipe_id,
-        }
+        assert set(plugin.recipe_actions) == {recipe.recipe_id for recipe in RECIPES}
         plugin.open_example("simulated-campaign")
         images = window.imagepanel.objmodel.get_all_objects()
         inputs = wcorr.suggest_frame_bindings(images)

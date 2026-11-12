@@ -126,6 +126,7 @@ def _catalog() -> tuple[FeatureSpec, ...]:
     from . import enhancement as wenh
     from . import magnification as wmag
     from . import measurements as wmeas
+    from . import quality as wquality
 
     return (
         FeatureSpec(
@@ -237,6 +238,24 @@ def _catalog() -> tuple[FeatureSpec, ...]:
             comp.robust_average,
             wenh.RobustAverageParam,
             comment="Average frames, rejecting direct photon hits",
+        ),
+        FeatureSpec(
+            "snr",
+            "Signal-to-noise ratio",
+            GROUP_IMAGE_QUALITY,
+            PATTERN_1_TO_0,
+            comp.snr,
+            wquality.SNRParam,
+            comment="SNR and normalized SNR in each region of interest",
+        ),
+        FeatureSpec(
+            "cnr",
+            "Contrast-to-noise ratio",
+            GROUP_IMAGE_QUALITY,
+            PATTERN_1_TO_0,
+            comp.cnr,
+            wquality.CNRParam,
+            comment="CNR of indication regions against a background region",
         ),
     )
 

@@ -26,6 +26,7 @@ from . import corrections as wcorr
 from . import enhancement as wenh
 from . import measurements as wmeas
 from . import objects
+from . import quality as wquality
 from .corrections import (
     AttenuationParam,
     DefectivePixelParam,
@@ -41,6 +42,7 @@ from .enhancement import (
 )
 from .magnification import ExpressCoordinatesParam
 from .measurements import MeasurementReportParam
+from .quality import CNRParam, SNRParam
 
 OPERATION_PREFIX = PLUGIN_ID
 
@@ -401,3 +403,44 @@ def robust_average(src_list: list[ImageObj], p: RobustAverageParam) -> ImageObj:
         [src.data for src in src_list], p.method, p.threshold
     )
     return dst
+
+
+# ---------------------------------------------------------------------------
+# Image quality
+# ---------------------------------------------------------------------------
+
+
+@computation_function(
+    operation_id=operation_id("snr"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+)
+def snr(src: ImageObj, p: SNRParam) -> TableResult:
+    """Signal-to-noise ratio of each region of interest (whole image if none).
+
+    Args:
+        src: radiograph (linear in dose: raw, corrected or transmission)
+        p: detrending and basic spatial resolution of the normalized SNR
+
+    Returns:
+        SNR table
+    """
+    return wquality.snr_table(src, p)
+
+
+@computation_function(
+    operation_id=operation_id("cnr"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+)
+def cnr(src: ImageObj, p: CNRParam) -> TableResult:
+    """Contrast-to-noise ratio of indication ROIs against a background ROI.
+
+    Args:
+        src: radiograph with at least two regions of interest
+        p: background region
+
+    Returns:
+        CNR table
+    """
+    return wquality.cnr_table(src, p)

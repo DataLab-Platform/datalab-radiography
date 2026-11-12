@@ -19,7 +19,20 @@ from .core import simulation as sim
 from .workflow import display as wdisplay
 from .workflow import magnification as wmag
 from .workflow import objects
-from .workflow.recipes import OFFSET_GAIN_RECIPE, STEP_WEDGE_RECIPE
+from .workflow.quality import REGION_BOX
+from .workflow.recipes import (
+    DUPLEX_RECIPE,
+    INDICATION_RECIPE,
+    OFFSET_GAIN_RECIPE,
+    STEP_WEDGE_RECIPE,
+    WALL_THICKNESS_RECIPE,
+)
+
+
+def _box(x0: float, y0: float, x1: float, y1: float) -> dict[str, object]:
+    """Return the parameter values of a measurement rectangle (pixel coordinates)."""
+    return {"region": REGION_BOX, "x0": x0, "y0": y0, "x1": x1, "y1": y1}
+
 
 #: Largest number of pixels of one acquisition (all frames together)
 MAX_ACQUISITION_PIXELS = 30_000_000
@@ -199,6 +212,7 @@ WELD_EXAMPLE = PluginExample(
         "Butt weld with pores and a crack, wire and duplex IQIs, and a "
         "calibration ball closer to the detector (two magnifications)"
     ),
+    recipe_ids=(DUPLEX_RECIPE.recipe_id, INDICATION_RECIPE.recipe_id),
 )
 PIPE_EXAMPLE = PluginExample(
     id="simulated-pipe",
@@ -207,6 +221,7 @@ PIPE_EXAMPLE = PluginExample(
         "Steel pipe seen tangentially, to measure its wall thickness, with a "
         "calibration ball on the detector (two magnifications)"
     ),
+    recipe_ids=(WALL_THICKNESS_RECIPE.recipe_id,),
 )
 STEP_WEDGE_EXAMPLE = PluginExample(
     id="simulated-step-wedge",
@@ -234,6 +249,11 @@ GENERATED_EXAMPLES: dict[str, GeneratedExample] = {
         sim.Detector(rows=400, cols=500),
         exposure=sim.Exposure(photons_per_pixel=6000.0, frames=4),
         title="Weld",
+        parameter_values={
+            # Rectangle across the duplex IQI, and around the weld bead
+            DUPLEX_RECIPE.recipe_id: _box(40.0, 35.0, 375.0, 90.0),
+            INDICATION_RECIPE.recipe_id: _box(15.0, 150.0, 485.0, 249.0),
+        },
     ),
     PIPE_EXAMPLE.id: GeneratedExample(
         PIPE_EXAMPLE,
@@ -242,6 +262,10 @@ GENERATED_EXAMPLES: dict[str, GeneratedExample] = {
         exposure=sim.Exposure(photons_per_pixel=8000.0, frames=4),
         seed=1,
         title="Pipe",
+        parameter_values={
+            # Rectangle across the whole pipe, away from the calibration ball
+            WALL_THICKNESS_RECIPE.recipe_id: _box(0.0, 200.0, 639.0, 340.0),
+        },
     ),
     STEP_WEDGE_EXAMPLE.id: GeneratedExample(
         STEP_WEDGE_EXAMPLE,

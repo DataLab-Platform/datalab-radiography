@@ -22,7 +22,13 @@ from ..workflow import RECIPES as WORKFLOW_RECIPES
 from ..workflow import features as wfeatures
 from ..workflow import magnification as wmag
 from ..workflow.parameters import SettingsParam
-from ..workflow.recipes import OFFSET_GAIN_RECIPE, STEP_WEDGE_RECIPE
+from ..workflow.recipes import (
+    DUPLEX_RECIPE,
+    INDICATION_RECIPE,
+    OFFSET_GAIN_RECIPE,
+    STEP_WEDGE_RECIPE,
+    WALL_THICKNESS_RECIPE,
+)
 from ..workflow.settings import SettingsStore
 from .desktop_display import DisplayController
 from .desktop_magnification import (
@@ -319,6 +325,12 @@ class XRayRadiographyNDTPlugin(PluginBase):
                 self._recipe_action(STEP_WEDGE_RECIPE, separator=True)
             with handler.new_menu(wfeatures.GROUP_ENHANCEMENT):
                 self._feature_actions(wfeatures.GROUP_ENHANCEMENT)
+            with handler.new_menu(wfeatures.GROUP_IMAGE_QUALITY):
+                self._feature_actions(wfeatures.GROUP_IMAGE_QUALITY)
+                self._recipe_action(DUPLEX_RECIPE, separator=True)
+            with handler.new_menu(wfeatures.GROUP_NDT):
+                self._recipe_action(WALL_THICKNESS_RECIPE)
+                self._recipe_action(INDICATION_RECIPE)
             self.settings_action = handler.new_action(
                 "Preferences...",
                 triggered=self.edit_settings,

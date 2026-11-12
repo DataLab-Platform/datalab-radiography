@@ -27,6 +27,7 @@ from sigima.objects.annotations import (
     is_graphical_annotation_dict,
 )
 
+from ..core import magnification as mag
 from ..core import measurement as meas
 from ..core import units
 from . import objects
@@ -172,6 +173,50 @@ def shapes_from_rois(obj: ImageObj) -> list[meas.Shape]:
 def image_unit(obj: ImageObj) -> str:
     """Return the unit of image coordinates ("px" for pixels)."""
     return obj.xunit or "px"
+
+
+PLANE_DETECTOR = "Detector"
+
+
+def plane_named(obj: ImageObj, name: str = "") -> meas.Plane:
+    """Return a plane of an image by name.
+
+    Args:
+        obj: image
+        name: name of a magnification, empty for the active magnification, or
+         ``Detector`` for the detector plane
+
+    Raises:
+        MagnificationError: if the plane is unknown or its scale is not known
+    """
+    name = (name or "").strip()
+    detector = objects.detector_mm_per_unit(obj)
+    if name.lower() == PLANE_DETECTOR.lower():
+        if detector is None:
+            raise mag.MagnificationError(
+                "The detector pixel pitch of the image is not known"
+            )
+        return meas.Plane(PLANE_DETECTOR, detector, 1.0)
+    mset = objects.check_magnifications(obj)
+    if name:
+        try:
+            item = mset.get(name)
+        except KeyError as exc:
+            known = ", ".join(mset.names) or "none"
+            raise mag.MagnificationError(
+                f"No magnification named {name!r} (magnifications: {known})"
+            ) from exc
+    else:
+        item = mset.active_item
+        if item is None:
+            raise mag.MagnificationError(
+                "The image has no magnification: define the magnification of "
+                f"the plane, or use the {PLANE_DETECTOR!r} plane"
+            )
+    factor = item.factor
+    if factor is None and detector is not None:
+        factor = item.with_factor_from(detector).factor
+    return meas.Plane(item.name, item.scale_mm, factor)
 
 
 def planes_for(obj: ImageObj, which: str = PLANES_ALL) -> list[meas.Plane]:

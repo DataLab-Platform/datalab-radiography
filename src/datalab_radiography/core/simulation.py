@@ -23,6 +23,8 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 
+from . import quality
+
 #: Effective linear attenuation coefficients (1/mm) and beam hardening
 #: coefficients (1/mm), illustrative values for a 150 to 200 kV spectrum
 MATERIALS: dict[str, tuple[float, float]] = {
@@ -34,21 +36,7 @@ MATERIALS: dict[str, tuple[float, float]] = {
 }
 
 #: Wire diameters (mm) of the duplex elements D1 to D13 (ISO 19232-5)
-DUPLEX_DIAMETERS = (
-    0.80,
-    0.63,
-    0.50,
-    0.40,
-    0.32,
-    0.25,
-    0.20,
-    0.16,
-    0.13,
-    0.10,
-    0.080,
-    0.063,
-    0.050,
-)
+DUPLEX_DIAMETERS = quality.DUPLEX_DIAMETERS
 #: Wire diameters (mm) of the wire IQI W6 to W12 (ISO 19232-1, W6 FE set)
 WIRE_DIAMETERS = (1.00, 0.80, 0.63, 0.50, 0.40, 0.32, 0.25)
 

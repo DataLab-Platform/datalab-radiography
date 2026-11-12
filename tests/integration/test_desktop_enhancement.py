@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import numpy as np
-from datalab.gui.actionhandler import ActionCategory
 from datalab.objectmodel import get_uuid
 
-from datalab_radiography import PLUGIN_NAME
 from datalab_radiography.workflow import display as wdisplay
 from datalab_radiography.workflow import enhancement as wenh
 from datalab_radiography.workflow import features as wfeatures
 
-from .helpers import radiography_app, the_plugin
+from .helpers import radiography_app, submenu_texts, the_plugin
 
 FEATURE_PARAMS = {
     "flatten-background": wenh.FlattenBackgroundParam.create(size=5.0, unit="mm"),
@@ -24,16 +22,6 @@ FEATURE_PARAMS = {
 def new_images(window, before: set[str]) -> list:
     """Return the images added since ``before`` (set of UUIDs)."""
     return [obj for obj in window.imagepanel.objmodel if get_uuid(obj) not in before]
-
-
-def submenu_texts(window, title: str) -> list[str]:
-    """Return the action texts of a submenu of the plugin menu."""
-    for menu in window.imagepanel.get_category_actions(ActionCategory.PLUGINS):
-        if hasattr(menu, "title") and menu.title() == PLUGIN_NAME.replace("&", "&&"):
-            for action in menu.actions():
-                if action.menu() is not None and action.text() == title:
-                    return [sub.text() for sub in action.menu().actions() if sub.text()]
-    raise AssertionError(f"No {title!r} submenu")
 
 
 def test_enhancement_features_in_desktop() -> None:
