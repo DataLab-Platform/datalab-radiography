@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools >= 77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "datalab-radiography"
+version = "0.1.0"
+description = "Radiographic imaging and non-destructive testing"
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+    "datalab-platform >= 1.4, < 2",
+    "numpy >= 1.22",
+    "scipy >= 1.10.1",
+    "pydicom >= 2.4; sys_platform != 'emscripten'",
+]
+keywords = [
+    "datalab",
+    "datalab-plugin",
+    "radiography",
+    "x-ray",
+    "non-destructive testing",
+    "NDT",
+]
+
+[project.urls]
+Homepage = "https://github.com/DataLab-Platform/datalab-radiography"
+Issues = "https://github.com/DataLab-Platform/datalab-radiography/issues"
+
+[project.entry-points."datalab.plugins"]
+datalab_radiography = "datalab_radiography.adapters.desktop:XRayRadiographyNDTPlugin"
+
+[project.optional-dependencies]
+test = ["build >= 1.2", "psutil >= 5.8", "pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+datalab_radiography = ["examples/*.h5", "examples/SOURCES.md", "icons/*.svg"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
