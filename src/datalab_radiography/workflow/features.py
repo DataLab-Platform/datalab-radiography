@@ -123,6 +123,7 @@ def _catalog() -> tuple[FeatureSpec, ...]:
     # pylint: disable=import-outside-toplevel
     from . import computations as comp
     from . import magnification as wmag
+    from . import measurements as wmeas
 
     return (
         FeatureSpec(
@@ -134,6 +135,15 @@ def _catalog() -> tuple[FeatureSpec, ...]:
             wmag.ExpressCoordinatesParam,
             preview=False,
             comment="Coordinates in an object plane, the detector plane or pixels",
+        ),
+        FeatureSpec(
+            "measurement-report",
+            "Measurement report",
+            GROUP_MEASUREMENTS,
+            PATTERN_1_TO_0,
+            comp.measurement_report,
+            wmeas.MeasurementReportParam,
+            comment="Measure annotations and ROIs in every plane",
         ),
     )
 

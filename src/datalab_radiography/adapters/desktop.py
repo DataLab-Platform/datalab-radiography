@@ -22,6 +22,7 @@ from .desktop_magnification import (
     MagnificationManagerDialog,
     show_geometry_calculator,
 )
+from .desktop_measure import MeasurementTool
 
 PLUGIN_ICON = "datalab_radiography:icons/radiography.svg"
 DOCUMENTATION_URL = "https://github.com/DataLab-Platform/datalab-radiography"
@@ -182,6 +183,19 @@ class XRayRadiographyNDTPlugin(PluginBase):
         """Open the radiographic geometry calculator."""
         return show_geometry_calculator(self, param)
 
+    def measurement_tool(self) -> MeasurementTool | None:
+        """Open the measurement tool on the current image."""
+        obj = self.imagepanel.objview.get_current_object()
+        if obj is None:
+            return None
+        try:
+            tool = MeasurementTool(self, obj)
+            tool.exec()
+        except ValueError as exc:
+            self.warn(str(exc))
+            return None
+        return tool
+
     def create_actions(self) -> None:
         """Create the plugin menu of the image panel."""
         handler = self.imagepanel.acthandler
@@ -247,6 +261,14 @@ class XRayRadiographyNDTPlugin(PluginBase):
                     select_condition="always",
                     separator=True,
                 )
+            with handler.new_menu(wfeatures.GROUP_MEASUREMENTS):
+                self.measure_action = handler.new_action(
+                    "Measurement tool...",
+                    triggered=self.measurement_tool,
+                    tip="Measure distances, angles, diameters and areas in every plane",
+                    select_condition="exactly_one",
+                )
+                self._feature_actions(wfeatures.GROUP_MEASUREMENTS)
             self.settings_action = handler.new_action(
                 "Preferences...",
                 triggered=self.edit_settings,

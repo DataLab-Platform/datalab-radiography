@@ -22,3 +22,8 @@ Magnifications:
 - Magnifications are saved with the image in DataLab workspaces, inherited by processing results, and remain valid after binning or ROI extraction.
 - Express coordinates in a plane: image coordinates in the object plane of a magnification, in the detector plane or in pixels, so that all DataLab measurements give physical lengths. Regions of interest and annotations keep their position.
 - Geometry calculator: magnification, object-plane pixel size, geometric and total unsharpness, and optimal magnification.
+
+Measurements:
+
+- Measurement tool: distances, polylines (with the angle of three points), circles, ellipses, rectangles, polygons and points drawn on the radiograph, measured live in image coordinates, in the detector plane and in the object plane of each magnification (areas divided by M²). The table can be copied, exported to CSV, attached to the image as a DataLab result, and the shapes kept as annotations titled with their values.
+- Measurement report: the same table for the annotations and regions of interest of the selected images, as a DataLab analysis.

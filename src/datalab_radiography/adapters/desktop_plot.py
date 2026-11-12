@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 def image_dialog(
-    panel: ImagePanel, obj: ImageObj, title: str, name: str
+    panel: ImagePanel, obj: ImageObj, title: str, name: str, edit: bool = True
 ) -> tuple[PlotDialog, object] | None:
     """Return a plot dialog showing an image with its current display settings.
 
@@ -29,11 +29,12 @@ def image_dialog(
         obj: image to show
         title: dialog title
         name: dialog object name
+        edit: if True, the dialog has OK and Cancel buttons
 
     Returns:
         Dialog and image item, or None if the dialog cannot be created
     """
-    dlg = panel.create_new_dialog(edit=True, toolbar=True, title=title, name=name)
+    dlg = panel.create_new_dialog(edit=edit, toolbar=True, title=title, name=name)
     if dlg is None:
         return None
     current = panel.plothandler.get(get_uuid(obj))

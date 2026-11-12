@@ -226,10 +226,10 @@ def _scaled_annotations(
 
 
 def _rectangle_corners(annotation: RectangleAnnotation) -> list[tuple[float, float]]:
-    """Return the corners of a rotated rectangle annotation."""
+    """Return the corners of a rotated rectangle annotation (centered on x, y)."""
     cos_a, sin_a = np.cos(annotation.angle), np.sin(annotation.angle)
     corners = []
-    for u, v in ((0, 0), (1, 0), (1, 1), (0, 1)):
+    for u, v in ((-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)):
         du, dv = u * annotation.width, v * annotation.height
         corners.append(
             (

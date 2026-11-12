@@ -8,7 +8,7 @@ contract version whenever a change alters the result.
 
 from __future__ import annotations
 
-from sigima.objects import ImageObj
+from sigima.objects import ImageObj, TableResult
 from sigima.proc.contracts import EXACT, ReplayQualification
 from sigima.proc.decorator import computation_function
 from sigima.proc.image.base import dst_1_to_1
@@ -16,8 +16,10 @@ from sigima.proc.image.base import dst_1_to_1
 from .. import PLUGIN_ID
 from ..core import magnification as mag
 from ..core import metadata as md
+from . import measurements as wmeas
 from . import objects
 from .magnification import ExpressCoordinatesParam
+from .measurements import MeasurementReportParam
 
 OPERATION_PREFIX = PLUGIN_ID
 
@@ -71,3 +73,29 @@ def express_coordinates(src: ImageObj, p: ExpressCoordinatesParam) -> ImageObj:
     if len(mset):
         objects.set_magnifications(dst, mset.rescaled(fx, fy))
     return dst
+
+
+@computation_function(
+    operation_id=operation_id("measurement_report"),
+    contract_version=1,
+    qualification=ReplayQualification(contract_version=1, comparison=EXACT),
+    reads_metadata={"src": _FRAME_METADATA},
+)
+def measurement_report(src: ImageObj, p: MeasurementReportParam) -> TableResult | None:
+    """Measure the annotations and ROIs of an image in every plane.
+
+    Columns give the values in image coordinates, in the detector plane (if its
+    scale is known) and in the object plane of each magnification.
+
+    Args:
+        src: image
+        p: report parameters
+
+    Returns:
+        Measurement table, or None if the image has no measurable shape
+    """
+    shapes = wmeas.shapes_for_report(src, p.sources)
+    if not shapes:
+        return None
+    planes, rows = wmeas.measure(src, shapes, p.planes, p.unit)
+    return wmeas.measurement_table(planes, rows, p.unit)
