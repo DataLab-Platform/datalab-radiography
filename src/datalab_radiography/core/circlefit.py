@@ -273,9 +273,10 @@ def refine_model(
     )
     background = float(np.median(region[radial > radius + 2]))
     inside = float(np.median(region[radial < 0.3 * radius]))
-    # Exponential model (raw intensities, with a detector offset), or linear
-    # model (attenuation images, whose background may be zero or negative)
-    exponential = background > 0 and inside > 0
+    # Exponential model (raw intensities of a darker object, with a detector
+    # offset), or linear model (attenuation images: brighter object, background
+    # near zero or negative)
+    exponential = 0 < inside < background
     if exponential:
         contrast = math.log(background / inside)
     else:

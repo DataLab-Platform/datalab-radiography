@@ -59,6 +59,17 @@ def test_model_fit_is_accurate(radius, shape, blur, bright, tolerance, seed) -> 
     assert fit.diameter == pytest.approx(2 * fit.radius)
 
 
+@pytest.mark.parametrize("level", [0.0005, 0.05, 1.0])
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_bright_object_on_positive_background(level, seed) -> None:
+    """An attenuation image keeps the linear model when its background is positive."""
+    image, xc, yc = projected_object(12.5, "sphere", 0.9, bright=True, seed=seed)
+    fit = circlefit.fit_circle(image + level, shape="sphere")
+    assert fit.radius == pytest.approx(12.5, rel=1e-3)
+    assert fit.xc == pytest.approx(xc, abs=0.05)
+    assert fit.yc == pytest.approx(yc, abs=0.05)
+
+
 def test_edge_fit_and_physical_coordinates() -> None:
     """The edge fit is exact for disks, and follows the axis coordinates."""
     image, xc, yc = projected_object(15.2, "disk", 0.8)
