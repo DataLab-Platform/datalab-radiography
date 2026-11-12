@@ -14,10 +14,13 @@ import pytest
 import sigima.io as sio
 from datalab.plugins.recipes import RecipeExecutionContext
 
+from datalab_radiography.core import dicom as cdicom
 from datalab_radiography.core import magnification as mag
 from datalab_radiography.workflow import computations, objects
 from datalab_radiography.workflow import correction_recipes as recipes
 from datalab_radiography.workflow import corrections as wcorr
+from datalab_radiography.workflow import dicom as wdicom
+from datalab_radiography.workflow import display as wdisplay
 
 CORPUS = os.environ.get("DATALAB_RADIOGRAPHY_CORPUS", "")
 pytestmark = pytest.mark.skipif(
@@ -106,3 +109,31 @@ def test_keyboard_laminography_free_beam() -> None:
     air = np.nanpercentile(values, 2)
     assert abs(air) < 0.1
     assert np.nanpercentile(values, 99) > 0.5
+
+
+def test_tcia_dicom_attributes() -> None:
+    """Real CR and DX files: inversion, pixel pitch and window from attributes."""
+    pydicom = pytest.importorskip("pydicom")
+    files = sorted(corpus_path("tcia-covid19-ar").rglob("*.dcm"))
+    assert len(files) >= 20
+    photometrics, pitches = set(), set()
+    for path in files:
+        image = sio.read_image(str(path))
+        header = pydicom.dcmread(path, stop_before_pixels=True)
+        attrs = cdicom.attributes({key: header.get(key) for key in cdicom.KEYWORDS})
+        assert wdicom.matches(image, attrs), path
+        wdicom.apply_attributes(image, attrs)
+        profile = wdisplay.apply_profile(image)
+        photometric = attrs["PhotometricInterpretation"]
+        photometrics.add(photometric)
+        assert profile.invert == (photometric == "MONOCHROME1"), path
+        spacing = attrs["ImagerPixelSpacing"]
+        pitch = objects.get_detector_pitch(image)
+        assert pitch == pytest.approx((spacing[1], spacing[0])), path
+        pitches.add(round(pitch[0], 3))
+        if "WindowCenter" in attrs:
+            assert profile.window_source == wdisplay.WINDOW_DICOM
+            low, high = profile.window.low, profile.window.high
+            assert low < np.max(image.data) and high > np.min(image.data), path
+    assert photometrics == {"MONOCHROME1", "MONOCHROME2"}
+    assert len(pitches) >= 2

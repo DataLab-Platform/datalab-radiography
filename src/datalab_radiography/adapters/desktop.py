@@ -30,6 +30,7 @@ from ..workflow.recipes import (
     WALL_THICKNESS_RECIPE,
 )
 from ..workflow.settings import SettingsStore
+from .desktop_dicom import DicomController
 from .desktop_display import DisplayController
 from .desktop_magnification import (
     MagnificationManagerDialog,
@@ -88,6 +89,8 @@ class XRayRadiographyNDTPlugin(PluginBase):
             path = osp.join(get_config_path("plugin_settings"), f"{PLUGIN_ID}.json")
         self.settings_store = SettingsStore(path)
         self.display = DisplayController(self)
+        self.dicom = DicomController(self)
+        self.display.new_image_hooks.append(self.dicom.on_new_image)
 
     # -- Messages ---------------------------------------------------------
 
@@ -288,6 +291,16 @@ class XRayRadiographyNDTPlugin(PluginBase):
                     triggered=display.edit_window,
                     tip="Percentiles, DICOM attributes, or level and width",
                     select_condition="at_least_one",
+                )
+                self.dicom_action = handler.new_action(
+                    "Read DICOM attributes",
+                    triggered=self.dicom.apply_to_selection,
+                    tip=(
+                        "Pixel spacing, magnification, window and gray scale of "
+                        "the DICOM files of the selected images"
+                    ),
+                    select_condition="at_least_one",
+                    separator=True,
                 )
             with handler.new_menu(wfeatures.GROUP_MAGNIFICATION):
                 self.magnification_action = handler.new_action(

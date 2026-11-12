@@ -15,6 +15,7 @@ import numpy as np
 from sigima.objects import ImageObj
 
 from ..core import circlefit, units
+from ..core import dicom as cdicom
 from ..core import magnification as mag
 from . import display as wdisplay
 from . import objects
@@ -391,21 +392,29 @@ def magnifications_from_metadata(obj: ImageObj) -> list[mag.Magnification]:
             )
             items.append(dataclasses.replace(item, method=mag.METHOD_METADATA))
     attrs = wdisplay.get_dicom_attributes(obj)
-    if attrs and detector is not None:
-        factor = attrs.get("EstimatedRadiographicMagnificationFactor")
-        sdd, sod = (
-            attrs.get("DistanceSourceToDetector"),
-            attrs.get("DistanceSourceToPatient"),
-        )
-        details: dict[str, Any] = {"source": "DICOM"}
-        if not factor and sdd and sod and 0 < float(sod) <= float(sdd):
-            factor = float(sdd) / float(sod)
-            details.update(sdd_mm=float(sdd), sod_mm=float(sod))
-        if factor and float(factor) > 0:
-            item = mag.from_value("DICOM", float(factor), detector, "From DICOM")
-            items.append(
-                dataclasses.replace(item, method=mag.METHOD_METADATA, details=details)
+    calibration = cdicom.calibration(attrs) if attrs else None
+    details: dict[str, Any] = {"source": "DICOM"}
+    if calibration is not None:
+        details.update(cdicom.geometry(attrs))
+        if calibration.calibration_type:
+            details["calibration_type"] = calibration.calibration_type
+    if calibration is not None and calibration.object_spacing_mm is not None:
+        sx, sy = calibration.object_spacing_mm
+        items.append(
+            mag.Magnification(
+                "DICOM",
+                (sx / abs(obj.dx), sy / abs(obj.dy)),
+                method=mag.METHOD_METADATA,
+                factor=calibration.factor,
+                details=details,
+                remarks="From the DICOM pixel spacing",
             )
+        )
+    elif calibration is not None and calibration.factor and detector is not None:
+        item = mag.from_value("DICOM", calibration.factor, detector, "From DICOM")
+        items.append(
+            dataclasses.replace(item, method=mag.METHOD_METADATA, details=details)
+        )
     return items
 
 

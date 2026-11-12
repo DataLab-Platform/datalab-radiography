@@ -60,3 +60,7 @@ NDT measurements:
 - Wall thickness in tangential radiography (inspired by ISO 20769-1), in the plane of the pipe axis: fit of the projected annulus, which corrects the blur (within 1.1 % for simulated walls of 2 to 5 mm), and steepest gradient edges (within 3 %), with the profile, the fitted model and the walls annotated.
 - Indication detection: indications deviating from the local background by several noise standard deviations, in the regions of interest, sized in the plane of a magnification (length, width, area, equivalent diameter), annotated on a copy of the radiograph, with an optional label image. Isolated defective pixels are ignored. No acceptance criterion is applied. Small, low-contrast indications are undersized (a pore of 0.7 mm measures 0.5 mm in the simulated weld).
 - The simulated weld and pipe examples propose these measurements with suitable rectangles.
+
+DICOM:
+
+- When a DICOM image is opened (CR, DX, DICONDE), its technical attributes are read with pydicom: detector pixel pitch (Imager Pixel Spacing), magnification (calibrated Pixel Spacing, estimated magnification factor, or source distances), window (with the rescale slope and intercept), and gray scale (MONOCHROME1 and inverse presentation shapes are inverted). No attribute identifying a patient, a part or an operator is copied. A preference disables this reading; **Display > Read DICOM attributes** reads them on demand. Checked on 28 real CR and DX files.

@@ -148,7 +148,9 @@ class DisplayController:
             self.panel.refresh_plot("selected", True, False)
             self.panel.SIG_OBJECT_MODIFIED.emit()
 
-    def _apply(self, function: Callable[[ImageObj], None]) -> list[ImageObj]:
+    def apply_to_selection(
+        self, function: Callable[[ImageObj], None]
+    ) -> list[ImageObj]:
         """Apply a function to the selected images, reporting failures."""
         done, errors = [], []
         for obj in self.selected_images():
@@ -166,7 +168,7 @@ class DisplayController:
     def apply_profile_to_selection(self) -> list[ImageObj]:
         """Apply the radiographic display to the selected images."""
         settings = self.settings
-        return self._apply(
+        return self.apply_to_selection(
             lambda obj: wdisplay.apply_profile(
                 obj,
                 settings.film_convention,
@@ -184,7 +186,7 @@ class DisplayController:
                 "invert_colormap", wdisplay.inversion_for(obj, bool(enabled))
             )
 
-        return self._apply(invert)
+        return self.apply_to_selection(invert)
 
     def auto_window(self, use_roi: bool = False) -> list[ImageObj]:
         """Set an automatic window on the selected images."""
@@ -200,7 +202,7 @@ class DisplayController:
                 source,
             )
 
-        return self._apply(window)
+        return self.apply_to_selection(window)
 
     def edit_window(self) -> list[ImageObj]:
         """Edit the window of the selected images."""
@@ -218,4 +220,4 @@ class DisplayController:
                 param.level, param.width = window.center, window.width
         if not param.edit(parent=self.plugin.main):
             return []
-        return self._apply(lambda obj: apply_window_param(obj, param))
+        return self.apply_to_selection(lambda obj: apply_window_param(obj, param))
