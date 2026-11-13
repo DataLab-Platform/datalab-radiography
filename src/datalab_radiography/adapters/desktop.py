@@ -45,8 +45,13 @@ MAGNIFICATION_ICON = "datalab_radiography:icons/magnification.svg"
 MEASURE_ICON = "datalab_radiography:icons/measure.svg"
 DOCUMENTATION_URL = "https://github.com/DataLab-Platform/datalab-radiography"
 
+#: Whether DataLab can leave a tool out of the automatic tool section of the
+#: plugin menu (DataLab 1.4.1 or later): the plugin places these tools in its
+#: own submenus
+_TOOL_MENU_FLAG = {"menu": False} if hasattr(PluginTool, "menu") else {}
+
 #: Interactive windows of DataLab Desktop, listed with the simulator in the
-#: plugin menu and in the Applications panel
+#: Applications panel, and placed in the submenus of the plugin
 DESKTOP_TOOLS = (
     PluginTool(
         id="measurement-tool",
@@ -56,6 +61,7 @@ DESKTOP_TOOLS = (
         icon=MEASURE_ICON,
         object_type=RecipeObjectType.IMAGE,
         selection=ToolSelection.EXACTLY_ONE,
+        **_TOOL_MENU_FLAG,
     ),
     PluginTool(
         id="magnifications",
@@ -65,6 +71,7 @@ DESKTOP_TOOLS = (
         icon=MAGNIFICATION_ICON,
         object_type=RecipeObjectType.IMAGE,
         selection=ToolSelection.EXACTLY_ONE,
+        **_TOOL_MENU_FLAG,
     ),
     PluginTool(
         id="geometry-calculator",
@@ -73,6 +80,7 @@ DESKTOP_TOOLS = (
         description="Magnification, unsharpness and optimal magnification",
         icon=MAGNIFICATION_ICON,
         object_type=RecipeObjectType.IMAGE,
+        **_TOOL_MENU_FLAG,
     ),
 )
 
@@ -351,13 +359,32 @@ class XRayRadiographyNDTPlugin(PluginBase):
                     separator=True,
                 )
             with handler.new_menu(wfeatures.GROUP_MAGNIFICATION):
+                self.magnification_action = handler.new_action(
+                    "Magnifications...",
+                    triggered=self.magnification_manager,
+                    tip="Define, choose and copy the magnifications of the image",
+                    select_condition="exactly_one",
+                )
                 self.pitch_action = handler.new_action(
                     "Detector pixel pitch...",
                     triggered=self.set_detector_pitch,
                     select_condition="at_least_one",
                 )
                 self._feature_actions(wfeatures.GROUP_MAGNIFICATION)
+                self.calculator_action = handler.new_action(
+                    "Geometry calculator...",
+                    triggered=self.geometry_calculator,
+                    tip="Magnification, unsharpness and optimal magnification",
+                    select_condition="always",
+                    separator=True,
+                )
             with handler.new_menu(wfeatures.GROUP_MEASUREMENTS):
+                self.measure_action = handler.new_action(
+                    "Measurement tool...",
+                    triggered=self.measurement_tool,
+                    tip="Measure distances, angles, diameters and areas in every plane",
+                    select_condition="exactly_one",
+                )
                 self._feature_actions(wfeatures.GROUP_MEASUREMENTS)
             with handler.new_menu(wfeatures.GROUP_CORRECTIONS):
                 self._recipe_action(OFFSET_GAIN_RECIPE)

@@ -26,7 +26,7 @@ Magnifications:
 Measurements:
 
 - Measurement tool: distances, polylines (with the angle of three points), circles, ellipses, rectangles, polygons and points drawn on the radiograph, measured live in image coordinates, in the detector plane and in the object plane of each magnification (areas divided by M²). The table can be copied, exported to CSV, attached to the image as a DataLab result, and the shapes kept as annotations titled with their values. Its window keeps its size and position.
-- In DataLab Desktop, the measurement tool, the magnification manager and the geometry calculator are tools of the plugin, listed in its menu and in the Applications panel.
+- In DataLab Desktop, the measurement tool, the magnification manager and the geometry calculator are also tools of the plugin, listed in the Applications panel (with DataLab 1.4.1 or later, they are not repeated at the end of the plugin menu).
 - Measurement report: the same table for the annotations and regions of interest of the selected images, as a DataLab analysis.
 
 Simulator and examples:

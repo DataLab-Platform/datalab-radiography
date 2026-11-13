@@ -2,7 +2,7 @@
 
 ## Measurement Tool
 
-**Measurement tool...** (a tool of the plugin menu and of the **Applications** panel) opens the radiograph in a window with drawing tools: segments, polylines, circles, ellipses, rectangles, polygons and points. The window keeps the size and position it had when it was last closed. Each shape is measured live:
+**Measurements > Measurement tool...** (also a tool of the **Applications** panel) opens the radiograph in a window with drawing tools: segments, polylines, circles, ellipses, rectangles, polygons and points. The window keeps the size and position it had when it was last closed. Each shape is measured live:
 
 | Shape | Quantities |
 | --- | --- |

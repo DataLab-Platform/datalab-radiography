@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from datalab.adapters_metadata import TableAdapter
 from datalab.objectmodel import get_uuid
+from datalab.plugins.tools import PluginTool
 from plotpy.builder import make
 from sigima.objects import create_image
 from sigima.objects.annotations import SegmentAnnotation, annotation_to_dict
@@ -75,6 +76,11 @@ def test_measurement_tool_window_size() -> None:
             "magnifications",
             "geometry-calculator",
         ]
+        # The tools stay in the submenus where users expect them
+        assert plugin.measure_action.text() == "Measurement tool..."
+        assert plugin.magnification_action.text() == "Magnifications..."
+        if hasattr(PluginTool, "menu"):
+            assert not plugin.get_tool("measurement-tool").menu
         image = _calibrated_image()
         window.imagepanel.add_object(image)
         window.imagepanel.objview.select_objects([get_uuid(image)])
