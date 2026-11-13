@@ -65,3 +65,7 @@ NDT measurements:
 DICOM:
 
 - When a DICOM image is opened (CR, DX, DICONDE), its technical attributes are read with pydicom: detector pixel pitch (Imager Pixel Spacing), magnification (calibrated Pixel Spacing, estimated magnification factor, or source distances), window (with the rescale slope and intercept), and gray scale (MONOCHROME1 and inverse presentation shapes are inverted). No attribute identifying a patient, a part or an operator is copied. A preference disables this reading; **Display > Read DICOM attributes** reads them on demand. Checked on 28 real CR and DX files.
+
+DataLab-Web:
+
+- The plugin runs in DataLab-Web: processing features in the plugin menu, recipes, examples and the simulator in the Applications catalog, and tools for magnifications (value, distances, known length, calibration ball, metadata, active magnification, copy, pixel pitch, geometry calculator) and display (radiographic display, film convention, window). DICOM attributes are not read in the browser.

@@ -32,6 +32,9 @@ Issues = "https://github.com/DataLab-Platform/datalab-radiography/issues"
 [project.entry-points."datalab.plugins"]
 datalab_radiography = "datalab_radiography.adapters.desktop:XRayRadiographyNDTPlugin"
 
+[project.entry-points."datalab.web_plugins"]
+datalab_radiography = "datalab_radiography.adapters.web:XRayRadiographyNDTWebPlugin"
+
 [project.optional-dependencies]
 test = ["build >= 1.2", "psutil >= 5.8", "pytest", "ruff"]
 

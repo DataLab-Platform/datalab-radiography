@@ -89,6 +89,12 @@ entry_point = next(
 )
 plugin_class = entry_point.load()
 module = importlib.import_module(plugin_class.__module__)
+web_entry_point = next(
+    value for value in distribution.entry_points
+    if value.group == "datalab.web_plugins"
+)
+web_plugin_class = web_entry_point.load()
+web_module = importlib.import_module(web_plugin_class.__module__)
 examples = {}
 for example in plugin_class.get_examples():
     if example.resource is not None:
@@ -104,6 +110,9 @@ print(json.dumps({
     "plugin_id": plugin_class.get_plugin_id(),
     "requires": sorted(distribution.requires or []),
     "sources": (package / "examples" / "SOURCES.md").is_file(),
+    "web_entry_point": web_entry_point.name,
+    "web_module_file": web_module.__file__,
+    "web_plugin_id": web_plugin_class.get_plugin_id(),
 }))
 """.replace("INSTALL_DIR", repr(os.fspath(install_dir)))
     environment = os.environ.copy()
@@ -123,6 +132,11 @@ print(json.dumps({
     assert result["plugin_id"] == PLUGIN_ID
     assert result["module_file"] == os.fspath(
         install_dir / "datalab_radiography" / "adapters" / "desktop.py"
+    )
+    assert result["web_entry_point"] == "datalab_radiography"
+    assert result["web_plugin_id"] == PLUGIN_ID
+    assert result["web_module_file"] == os.fspath(
+        install_dir / "datalab_radiography" / "adapters" / "web.py"
     )
     assert result["icons"] == ICONS
     assert result["sources"]

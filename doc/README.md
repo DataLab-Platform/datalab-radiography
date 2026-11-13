@@ -12,6 +12,7 @@
 - [NDT measurements](ndt-measurements.md): wall thickness in tangential radiography, indication detection and sizing.
 - [DICOM images](dicom.md): attributes read from DICOM and DICONDE files.
 - [Simulator and examples](simulator.md): simulated scenes, detector model, real-data examples.
+- [DataLab-Web](web.md): what the plugin offers in the browser.
 
 ## Developers
 

@@ -31,7 +31,7 @@ Python 3.10 or later is required in a Python environment; the standalone DataLab
   pip install git+https://github.com/DataLab-Platform/datalab-radiography.git
   ```
 
-- **DataLab-Web:** [DataLab-Web](https://github.com/DataLab-Platform/web) bundles the plugin (DICOM attributes are not read in the browser).
+- **DataLab-Web:** [DataLab-Web](https://github.com/DataLab-Platform/web) bundles the plugin; see [DataLab-Web](doc/web.md) for the differences with DataLab Desktop.
 
 ## First Run
 

@@ -124,7 +124,7 @@ class MagnificationBallParam(gds.DataSet):
 class MagnificationNameParam(gds.DataSet):
     """Magnification"""
 
-    name = gds.StringItem("Name", default="", notempty=True)
+    name = gds.StringItem("Name", default="Object plane", notempty=True)
 
 
 _EXPRESS_TARGET = gds.ValueProp(mag.FRAME_OBJECT)
