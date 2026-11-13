@@ -172,6 +172,24 @@ def update_window(
     return window
 
 
+def inherit_display(src: ImageObj, dst: ImageObj) -> None:
+    """Give a processing result the radiographic display of its source.
+
+    Sigima does not copy display options to results. DataLab Desktop applies
+    the profile to new images through the display controller of the plugin;
+    hosts without such a hook (DataLab-Web) rely on this function. The window
+    is computed again on the values of the result.
+    """
+    if not has_profile(src) or not has_profile(dst):
+        return
+    profile = md.loads(src.metadata.get(md.DISPLAY_PROFILE_KEY)) or {}
+    invert = src.metadata.get("__invert_colormap", profile.get("invert", False))
+    dst.set_metadata_option("colormap", COLORMAP)
+    dst.set_metadata_option("invert_colormap", bool(invert))
+    if np.isfinite(dst.data).any():
+        update_window(dst, auto_window(dst), WINDOW_AUTO)
+
+
 def is_explicit_display(
     obj: ImageObj, displayed: bool, default_colormap: str | None
 ) -> bool:

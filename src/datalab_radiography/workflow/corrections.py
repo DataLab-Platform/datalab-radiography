@@ -109,8 +109,8 @@ def derived_image(
 ) -> ImageObj:
     """Return a new image computed from a source image.
 
-    The new image keeps the metadata, coordinates and ROIs of the source; its
-    display window is recomputed if the source has the radiographic profile.
+    The new image keeps the metadata, coordinates and ROIs of the source, and
+    its radiographic display, with a window computed again on its values.
     """
     dst = src.copy(title=title)
     dst.data = data
@@ -119,8 +119,7 @@ def derived_image(
     dst.zscalemin = dst.zscalemax = None
     for key in (md.FRAME_ROLE_KEY, md.OUTPUT_ROLE_KEY):
         dst.metadata.pop(key, None)
-    if wdisplay.has_profile(dst) and np.isfinite(data).any():
-        wdisplay.update_window(dst, wdisplay.auto_window(dst), wdisplay.WINDOW_AUTO)
+    wdisplay.inherit_display(src, dst)
     return dst
 
 

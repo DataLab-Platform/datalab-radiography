@@ -23,6 +23,7 @@ from ..core import enhancement as core_enhancement
 from ..core import magnification as mag
 from ..core import metadata as md
 from . import corrections as wcorr
+from . import display as wdisplay
 from . import enhancement as wenh
 from . import measurements as wmeas
 from . import objects
@@ -95,6 +96,7 @@ def express_coordinates(src: ImageObj, p: ExpressCoordinatesParam) -> ImageObj:
     objects.set_coordinate_frame(dst, new_frame)
     if len(mset):
         objects.set_magnifications(dst, mset.rescaled(fx, fy))
+    wdisplay.inherit_display(src, dst)
     return dst
 
 
@@ -148,6 +150,7 @@ def defective_pixel_map(src: ImageObj, p: DefectivePixelParam) -> ImageObj:
     mask = core_corrections.defective_pixel_map(src.data, p.size, p.threshold)
     dst.data = mask.astype(np.uint8)
     dst.zunit = ""
+    wdisplay.inherit_display(src, dst)
     return dst
 
 
@@ -169,6 +172,7 @@ def correct_defective_pixels(src: ImageObj, p: DefectivePixelParam) -> ImageObj:
     dst = dst_1_to_1(src, "correct_defective_pixels", f"threshold={p.threshold:g}")
     mask = core_corrections.defective_pixel_map(src.data, p.size, p.threshold)
     dst.data = core_corrections.correct_defective_pixels(src.data, mask, p.size)
+    wdisplay.inherit_display(src, dst)
     return dst
 
 
@@ -194,6 +198,7 @@ def attenuation(src: ImageObj, p: AttenuationParam) -> ImageObj:
     dst = dst_1_to_1(src, "attenuation", f"I0={free_beam:.6g}")
     dst.data = core_attenuation.attenuation(src.data - p.offset, free_beam)
     dst.zunit = ""
+    wdisplay.inherit_display(src, dst)
     return dst
 
 
@@ -224,6 +229,7 @@ def attenuation_with_flat(
         signal = np.asarray(src1.data, dtype=float) - p.offset
         dst.data = np.where(signal > 0, -np.log(signal / flat), np.nan)
     dst.zunit = ""
+    wdisplay.inherit_display(src1, dst)
     return dst
 
 
@@ -248,6 +254,7 @@ def equivalent_thickness(src: ImageObj, p: ThicknessParam) -> ImageObj:
     dst = dst_1_to_1(src, "equivalent_thickness", f"mu={p.mu:g}/mm")
     dst.data = core_attenuation.equivalent_thickness(src.data, p.mu)
     dst.zunit = "mm"
+    wdisplay.inherit_display(src, dst)
     return dst
 
 
@@ -275,6 +282,7 @@ def flatten_background(src: ImageObj, p: FlattenBackgroundParam) -> ImageObj:
     size = wenh.pixel_sizes(src, p.size, p.unit)
     dst = dst_1_to_1(src, "flatten_background", f"size={p.size:g} {p.unit}")
     dst.data = core_enhancement.flatten_background(src.data, size, p.method, p.mode)
+    wdisplay.inherit_display(src, dst)
     return dst
 
 
@@ -297,6 +305,7 @@ def unsharp_mask(src: ImageObj, p: UnsharpMaskParam) -> ImageObj:
     sigma = wenh.pixel_sizes(src, p.sigma, p.unit)
     dst = dst_1_to_1(src, "unsharp_mask", f"sigma={p.sigma:g} {p.unit}")
     dst.data = core_enhancement.unsharp_mask(src.data, sigma, p.amount)
+    wdisplay.inherit_display(src, dst)
     return dst
 
 
@@ -333,6 +342,7 @@ def radiographic_clahe(src: ImageObj, p: RadiographicClaheParam) -> ImageObj:
         normalized, kernel_size=kernel, clip_limit=p.clip_limit
     )
     dst.zunit = ""
+    wdisplay.inherit_display(src, dst)
     return dst
 
 
@@ -378,6 +388,7 @@ def radiographic_denoise(src: ImageObj, p: RadiographicDenoiseParam) -> ImageObj
                 normalized, sigma_color=p.weight, sigma_spatial=0.5 * (sx + sy)
             )
         dst.data = result * span + window.low
+    wdisplay.inherit_display(src, dst)
     return dst
 
 
@@ -402,6 +413,7 @@ def robust_average(src_list: list[ImageObj], p: RobustAverageParam) -> ImageObj:
     dst.data = core_enhancement.robust_average(
         [src.data for src in src_list], p.method, p.threshold
     )
+    wdisplay.inherit_display(src_list[0], dst)
     return dst
 
 

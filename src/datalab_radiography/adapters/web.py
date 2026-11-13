@@ -40,6 +40,15 @@ PLUGIN_ICON = "datalab_radiography:icons/radiography.svg"
 MAGNIFICATION_ICON = "datalab_radiography:icons/magnification.svg"
 DISPLAY_ICON = "datalab_radiography:icons/display.svg"
 DOCUMENTATION_URL = "https://github.com/DataLab-Platform/datalab-radiography"
+#: Metadata keys of the LUT range and colormap chosen in DataLab-Web
+DATALAB_WEB_LUT_KEY = "_dlw_lut_range"
+DATALAB_WEB_DISPLAY_KEYS = (
+    "colormap",
+    "colourmap",
+    "invert_colormap",
+    "colormap_inverted",
+    DATALAB_WEB_LUT_KEY,
+)
 
 
 def _image_tool(
@@ -353,12 +362,24 @@ class XRayRadiographyNDTWebPlugin(PluginBase):
 
     # -- Display tools ----------------------------------------------------
 
+    @staticmethod
+    def clear_host_display(obj: ImageObj) -> None:
+        """Remove the display choices made in DataLab-Web, for the plugin display.
+
+        DataLab-Web stores them under its own keys, which take precedence over
+        the display options of the image.
+        """
+        for key in DATALAB_WEB_DISPLAY_KEYS:
+            obj.metadata.pop(key, None)
+
     async def apply_radiographic_display(self) -> list[ImageObj]:
         """Apply the radiographic display to the selected images."""
-        return await self.apply(
-            self.selected_images(),
-            lambda obj: wdisplay.apply_profile(obj, self.film_convention),
-        )
+
+        def apply(obj: ImageObj) -> None:
+            self.clear_host_display(obj)
+            wdisplay.apply_profile(obj, self.film_convention)
+
+        return await self.apply(self.selected_images(), apply)
 
     async def set_film_convention(self) -> list[ImageObj]:
         """Choose the film convention and apply it to the selected images."""
@@ -369,6 +390,8 @@ class XRayRadiographyNDTWebPlugin(PluginBase):
         self.film_convention = bool(param.film_convention)
 
         def invert(obj: ImageObj) -> None:
+            for key in ("invert_colormap", "colormap_inverted"):
+                obj.metadata.pop(key, None)
             obj.set_metadata_option(
                 "invert_colormap", wdisplay.inversion_for(obj, self.film_convention)
             )
@@ -380,9 +403,12 @@ class XRayRadiographyNDTWebPlugin(PluginBase):
         param = wparams.WindowParam()
         if not await self.edit(param):
             return []
-        return await self.apply(
-            self.selected_images(), lambda obj: wparams.apply_window_param(obj, param)
-        )
+
+        def window(obj: ImageObj) -> None:
+            obj.metadata.pop(DATALAB_WEB_LUT_KEY, None)
+            wparams.apply_window_param(obj, param)
+
+        return await self.apply(self.selected_images(), window)
 
 
 def get_web_manifest() -> dict[str, object]:

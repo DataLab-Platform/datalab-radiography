@@ -265,8 +265,11 @@ def test_display_tools() -> None:
     image = radiograph()
     image.data = np.linspace(0.0, 1000.0, image.data.size).reshape(image.data.shape)
     plugin = web_plugin(images=(image,))
+    image.metadata.update(colormap="viridis", _dlw_lut_range=[0.0, 1.0])
     asyncio.run(plugin.apply_radiographic_display())
     assert image.get_metadata_option("colormap") == "gray"
+    assert "colormap" not in image.metadata
+    assert "_dlw_lut_range" not in image.metadata
     plugin.edit = edited(film_convention=True)
     asyncio.run(plugin.set_film_convention())
     assert plugin.film_convention and image.get_metadata_option("invert_colormap")

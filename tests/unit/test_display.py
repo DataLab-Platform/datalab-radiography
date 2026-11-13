@@ -146,3 +146,23 @@ def test_explicit_display_rule() -> None:
     assert wdisplay.is_explicit_display(image, False, "viridis")
     image.set_metadata_option("colormap", "jet")
     assert wdisplay.is_explicit_display(image, True, "viridis")
+
+
+def test_processing_results_inherit_the_display() -> None:
+    """Results of the plugin features keep the radiographic display."""
+    from datalab_radiography.workflow import computations
+    from datalab_radiography.workflow import enhancement as wenh
+
+    image = create_image("radiograph", _radiograph())
+    wdisplay.apply_profile(image, film_convention=True)
+    result = computations.flatten_background(
+        image, wenh.FlattenBackgroundParam.create(size=20.0, unit=wenh.PIXELS)
+    )
+    assert result.get_metadata_option("colormap") == wdisplay.COLORMAP
+    assert result.get_metadata_option("invert_colormap") is True
+    assert result.zscalemin is not None and result.zscalemax > result.zscalemin
+    plain = create_image("plain", _radiograph())
+    other = computations.flatten_background(
+        plain, wenh.FlattenBackgroundParam.create(size=20.0, unit=wenh.PIXELS)
+    )
+    assert "__colormap" not in other.metadata and other.zscalemin is None
