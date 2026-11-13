@@ -32,7 +32,7 @@ from ..workflow import magnification as wmag
 from ..workflow import parameters as wparams
 
 #: Browser qualification of this adapter
-WEB_STATUS = "candidate"
+WEB_STATUS = "verified"
 #: First DataLab-Web version bundling the plugin
 DATALAB_WEB_VERSION = "0.12.0"
 PYODIDE_VERSION = "0.26.4"

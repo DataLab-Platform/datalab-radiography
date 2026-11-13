@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [0.1.0] - 2026-11-13
 
 Python 3.10 or later and DataLab 1.4 or later are required.
 
