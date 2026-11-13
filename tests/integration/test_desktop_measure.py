@@ -79,6 +79,8 @@ def test_measurement_tool_window_size() -> None:
         # The tools stay in the submenus where users expect them
         assert plugin.measure_action.text() == "Measurement tool..."
         assert plugin.magnification_action.text() == "Magnifications..."
+        assert not plugin.measure_action.icon().isNull()
+        assert not plugin.calculator_action.icon().isNull()
         if hasattr(PluginTool, "menu"):
             assert not plugin.get_tool("measurement-tool").menu
         image = _calibrated_image()

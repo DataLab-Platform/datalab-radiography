@@ -8,6 +8,7 @@ import os.path as osp
 
 from datalab.config import get_config_path
 from datalab.env import execenv
+from datalab.gui.plugins.applications import get_plugin_icon
 from datalab.plugins import PluginBase, PluginCapability, PluginInfo
 from datalab.plugins.examples import PluginExample, PluginExampleData
 from datalab.plugins.recipes import RecipeDescriptor, RecipeObjectType
@@ -359,11 +360,8 @@ class XRayRadiographyNDTPlugin(PluginBase):
                     separator=True,
                 )
             with handler.new_menu(wfeatures.GROUP_MAGNIFICATION):
-                self.magnification_action = handler.new_action(
-                    "Magnifications...",
-                    triggered=self.magnification_manager,
-                    tip="Define, choose and copy the magnifications of the image",
-                    select_condition="exactly_one",
+                self.magnification_action = self._tool_action(
+                    "magnifications", self.magnification_manager, "exactly_one"
                 )
                 self.pitch_action = handler.new_action(
                     "Detector pixel pitch...",
@@ -371,19 +369,15 @@ class XRayRadiographyNDTPlugin(PluginBase):
                     select_condition="at_least_one",
                 )
                 self._feature_actions(wfeatures.GROUP_MAGNIFICATION)
-                self.calculator_action = handler.new_action(
-                    "Geometry calculator...",
-                    triggered=self.geometry_calculator,
-                    tip="Magnification, unsharpness and optimal magnification",
-                    select_condition="always",
+                self.calculator_action = self._tool_action(
+                    "geometry-calculator",
+                    self.geometry_calculator,
+                    "always",
                     separator=True,
                 )
             with handler.new_menu(wfeatures.GROUP_MEASUREMENTS):
-                self.measure_action = handler.new_action(
-                    "Measurement tool...",
-                    triggered=self.measurement_tool,
-                    tip="Measure distances, angles, diameters and areas in every plane",
-                    select_condition="exactly_one",
+                self.measure_action = self._tool_action(
+                    "measurement-tool", self.measurement_tool, "exactly_one"
                 )
                 self._feature_actions(wfeatures.GROUP_MEASUREMENTS)
             with handler.new_menu(wfeatures.GROUP_CORRECTIONS):
@@ -417,6 +411,25 @@ class XRayRadiographyNDTPlugin(PluginBase):
                         tip=example.description,
                         select_condition="always",
                     )
+
+    def _tool_action(
+        self,
+        tool_id: str,
+        triggered,
+        select_condition: str,
+        separator: bool = False,
+    ) -> QW.QAction:
+        """Create the submenu entry of a tool, with its title, tip and icon."""
+        tool = self.get_tool(tool_id)
+        action = self.imagepanel.acthandler.new_action(
+            tool.title,
+            triggered=triggered,
+            tip=tool.description or None,
+            select_condition=select_condition,
+            separator=separator,
+        )
+        action.setIcon(get_plugin_icon(tool.icon))
+        return action
 
     def _feature_actions(self, group: str) -> list[QW.QAction]:
         """Create the actions of the registered features of a menu group."""
