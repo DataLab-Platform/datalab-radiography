@@ -12,7 +12,7 @@ The plugin stores, with each image, any number of named magnifications, one per 
 
 ## Defining a Magnification
 
-**Magnification > Magnifications...** shows the magnifications of the image, with their method and object-plane pixel size, and defines new ones:
+**Magnifications...** (a tool of the plugin menu and of the **Applications** panel) shows the magnifications of the image, with their method and object-plane pixel size, and defines new ones:
 
 | Method | Input |
 | --- | --- |
@@ -30,7 +30,7 @@ The dialog also makes a magnification active, removes one, and copies the magnif
 
 ## Geometry Calculator
 
-**Magnification > Geometry calculator...** computes, from the distances, the focal spot size and the basic spatial resolution of the detector:
+**Geometry calculator...** (a tool of the plugin menu and of the **Applications** panel) computes, from the distances, the focal spot size and the basic spatial resolution of the detector:
 
 - the magnification and the object-plane pixel size;
 - the geometric unsharpness Ug = f (M - 1), in the detector plane;

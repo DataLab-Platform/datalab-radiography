@@ -35,6 +35,8 @@ class RadiographySettings:
         apply_dicom_attributes: read pixel spacing, magnification and window
          from the attributes of new DICOM images
         detector_pitch_mm: last detector pixel pitch entered, in mm
+        measurement_window: geometry of the measurement tool window (Qt state
+         encoded in base64), or None for the default size
     """
 
     auto_display: bool = True
@@ -44,6 +46,7 @@ class RadiographySettings:
     unit: str = units.DEFAULT_UNIT
     apply_dicom_attributes: bool = True
     detector_pitch_mm: float | None = None
+    measurement_window: str | None = None
 
     def __post_init__(self) -> None:
         """Replace invalid values by their defaults."""
@@ -66,6 +69,10 @@ class RadiographySettings:
             isinstance(pitch, (int, float)) and math.isfinite(pitch) and pitch > 0
         ):
             self.detector_pitch_mm = None
+        if not (
+            self.measurement_window is None or isinstance(self.measurement_window, str)
+        ):
+            self.measurement_window = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return the preferences as a JSON-compatible mapping."""

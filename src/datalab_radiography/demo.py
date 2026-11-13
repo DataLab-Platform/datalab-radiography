@@ -271,7 +271,6 @@ GENERATED_EXAMPLES: dict[str, GeneratedExample] = {
         STEP_WEDGE_EXAMPLE,
         sim.step_wedge_scene,
         sim.Detector(rows=300, cols=520),
-        geometry=sim.Geometry(voltage_kv=80.0),
         exposure=sim.Exposure(photons_per_pixel=8000.0, frames=4),
         darks=4,
         flats=4,

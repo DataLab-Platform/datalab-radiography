@@ -5,12 +5,14 @@ quality indicators, step wedge, ball, pipe) lying in object planes parallel to
 the detector. Each plane has its own magnification M = SDD / SOD, so that a
 single radiograph may hold several magnifications.
 
-The model is a monochromatic Beer-Lambert law with an optional beam hardening
-term per material, A(t) = mu t / (1 + beta t), where t is the thickness
-crossed. The transmission of each plane is blurred by the focal spot (geometric
-unsharpness Ug = f (M - 1), in the detector plane), then the detector adds its
-blur, a heel effect, a gain and offset non-uniformity, Poisson and read noise,
-defective pixels and saturation.
+The model is a Beer-Lambert law with an optional beam hardening term per
+material, A(t) = mu t / (1 + beta t), where t is the thickness crossed. The
+effective coefficients depend on the tube voltage V: they are given at 160 kV
+and scaled by (160 / V)^1.5, so that lower voltages give more attenuation and
+more contrast. The transmission of each plane is blurred by the focal spot
+(geometric unsharpness Ug = f (M - 1), in the detector plane), then the detector
+adds its blur, a heel effect, a gain and offset non-uniformity, Poisson and read
+noise, defective pixels and saturation.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from scipy import ndimage
 from . import quality
 
 #: Effective linear attenuation coefficients (1/mm) and beam hardening
-#: coefficients (1/mm), illustrative values for a 150 to 200 kV spectrum
+#: coefficients (1/mm) at the reference voltage, illustrative values
 MATERIALS: dict[str, tuple[float, float]] = {
     "steel": (0.15, 0.010),
     "aluminum": (0.05, 0.004),
@@ -34,6 +36,32 @@ MATERIALS: dict[str, tuple[float, float]] = {
     "platinum": (3.5, 0.0),
     "air": (0.0, 0.0),
 }
+#: Tube voltage of the coefficients of :data:`MATERIALS` (kV)
+REFERENCE_VOLTAGE_KV = 160.0
+#: Exponent of the voltage dependence of the coefficients
+VOLTAGE_EXPONENT = 1.5
+#: Range of tube voltages of the model (kV)
+VOLTAGE_RANGE_KV = (40.0, 450.0)
+
+
+def material_coefficients(
+    material: str, voltage_kv: float = REFERENCE_VOLTAGE_KV
+) -> tuple[float, float]:
+    """Return the attenuation and beam hardening coefficients at a tube voltage.
+
+    Both coefficients of :data:`MATERIALS` are scaled by
+    (REFERENCE_VOLTAGE_KV / voltage_kv) ** VOLTAGE_EXPONENT.
+
+    Raises:
+        ValueError: if the voltage is outside :data:`VOLTAGE_RANGE_KV`
+    """
+    low, high = VOLTAGE_RANGE_KV
+    if not low <= voltage_kv <= high:
+        raise ValueError(f"The tube voltage must be between {low:g} and {high:g} kV")
+    scale = (REFERENCE_VOLTAGE_KV / voltage_kv) ** VOLTAGE_EXPONENT
+    mu, beta = MATERIALS[material]
+    return mu * scale, beta * scale
+
 
 #: Wire diameters (mm) of the duplex elements D1 to D13 (ISO 19232-5)
 DUPLEX_DIAMETERS = quality.DUPLEX_DIAMETERS
@@ -394,12 +422,13 @@ class Geometry:
     Args:
         sdd_mm: source-to-detector distance
         focal_spot_mm: optical focal spot size
-        voltage_kv: tube voltage (informative)
+        voltage_kv: tube voltage, scaling the attenuation coefficients (see
+         :func:`material_coefficients`)
     """
 
     sdd_mm: float = 1000.0
     focal_spot_mm: float = 0.4
-    voltage_kv: float = 160.0
+    voltage_kv: float = REFERENCE_VOLTAGE_KV
 
 
 @dataclasses.dataclass(frozen=True)
@@ -511,11 +540,14 @@ def render_thickness(
     return thickness, slices
 
 
-def attenuation(thickness_by_material: Mapping[str, np.ndarray]) -> np.ndarray:
+def attenuation(
+    thickness_by_material: Mapping[str, np.ndarray],
+    voltage_kv: float = REFERENCE_VOLTAGE_KV,
+) -> np.ndarray:
     """Return the attenuation (line integral) of thicknesses per material."""
     total = None
     for material, thickness in thickness_by_material.items():
-        mu, beta = MATERIALS[material]
+        mu, beta = material_coefficients(material, voltage_kv)
         value = mu * thickness / (1.0 + beta * thickness)
         total = value if total is None else total + value
     return total
@@ -543,7 +575,7 @@ def plane_transmissions(
             continue
         for thickness in by_material.values():
             np.clip(thickness, 0.0, None, out=thickness)
-        transmission = np.exp(-attenuation(by_material))
+        transmission = np.exp(-attenuation(by_material, geometry.voltage_kv))
         ug = geometry.focal_spot_mm * (factor - 1.0) / detector.pitch_mm
         if focal_blur and ug > 0:
             # Gaussian focal spot: its FWHM is the geometric unsharpness

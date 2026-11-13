@@ -14,11 +14,11 @@ Scenes:
 The model is deterministic, with known truth:
 
 - each component lies in an object plane, with its magnification M = SDD / SOD;
-- attenuation follows a Beer-Lambert law with a beam hardening term, A(t) = μ t / (1 + β t), per material;
+- attenuation follows a Beer-Lambert law with a beam hardening term, A(t) = μ t / (1 + β t), per material; the coefficients are given at 160 kV and scaled by (160 / V)^1.5 with the tube voltage V (40 to 450 kV): lower voltages give more contrast, and less signal behind thick parts;
 - each plane is blurred by the focal spot (geometric unsharpness f (M − 1));
 - the detector adds its blur, the heel effect, gain and offset non-uniformity, Poisson and read noise, dead and hot pixels, and 14-bit saturation.
 
-Settings: scene, source-to-object distances, source-to-detector distance, focal spot, voltage, photons per pixel and averaged frames, detector size, pitch, blur, read noise, gain non-uniformity, heel effect, defective pixels, and the numbers of radiographs, dark and flat images to acquire.
+Settings: scene, source-to-object distances, source-to-detector distance, focal spot, voltage, photons per pixel (100 to 30,000: the free beam saturates the detector above about 28,000) and averaged frames, detector size, pitch, blur, read noise, gain non-uniformity, heel effect, defective pixels, and the numbers of radiographs, dark and flat images to acquire. **Restore defaults** (DataLab 1.4.1 or later, DataLab-Web) sets them back to their default values.
 
 Acquired images carry their role (radiograph, dark, flat), detector pixel pitch, geometry, magnifications and ground truth, so that every method of the plugin can be checked against the truth.
 

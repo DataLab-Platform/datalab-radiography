@@ -54,6 +54,26 @@ def test_beer_lambert_and_frames() -> None:
     assert result.truth["components"][0]["thickness_mm"] == 10.0
 
 
+def test_tube_voltage_changes_attenuation() -> None:
+    """Coefficients follow the voltage; lower voltages give more contrast."""
+    assert sim.material_coefficients("steel") == sim.MATERIALS["steel"]
+    mu80, beta80 = sim.material_coefficients("steel", 80.0)
+    assert mu80 == pytest.approx(0.15 * 2**1.5)
+    assert beta80 == pytest.approx(0.010 * 2**1.5)
+    with pytest.raises(ValueError, match="between 40 and 450 kV"):
+        sim.material_coefficients("steel", 1000.0)
+    scene = sim.Scene("slab", {"Slab": 900.0}, (sim.Box("Slab", "Slab", depth=10.0),))
+    transmissions = [
+        np.median(
+            sim.plane_transmissions(scene, sim.Geometry(voltage_kv=v), sim.Detector())[
+                "Slab"
+            ]
+        )
+        for v in (80.0, 160.0, 300.0)
+    ]
+    assert transmissions[0] < transmissions[1] < transmissions[2]
+
+
 def test_wire_rendering_conserves_area() -> None:
     """Thin wires are rendered with their exact cross-section."""
     detector = sim.Detector(rows=50, cols=200)

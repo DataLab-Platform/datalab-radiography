@@ -36,7 +36,7 @@ def stepped_casting():
             )
         )
     scene = sim.Scene("casting", {PLANE: 900.0}, tuple(components), "Stepped casting")
-    geometry = sim.Geometry(voltage_kv=80.0)
+    geometry = sim.Geometry()
     detector = sim.Detector(rows=300, cols=520)
     simulation = sim.simulate(
         scene, geometry, detector, sim.Exposure(photons_per_pixel=20000.0, frames=4)

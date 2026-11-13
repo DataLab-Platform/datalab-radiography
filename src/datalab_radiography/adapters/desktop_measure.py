@@ -19,6 +19,7 @@ from plotpy.tools import (
     AnnotatedSegmentTool,
     MultiLineTool,
 )
+from qtpy import QtCore as QC
 from qtpy import QtWidgets as QW
 from sigima.objects import ImageObj
 from sigima.objects.annotations import annotation_to_dict
@@ -33,6 +34,10 @@ if TYPE_CHECKING:
     from .desktop import XRayRadiographyNDTPlugin
 
 ALL_PLANES = "All planes"
+#: Minimum width of the side panel (planes, table and buttons)
+SIDE_MIN_WIDTH = 460
+#: Minimum default height of the window
+DEFAULT_HEIGHT = 700
 DRAWING_TOOLS = (
     AnnotatedSegmentTool,
     MultiLineTool,
@@ -120,8 +125,10 @@ class MeasurementTool:
         close = QW.QDialogButtonBox(QW.QDialogButtonBox.Close, side)
         close.rejected.connect(dlg.reject)
         layout.addWidget(close)
-        side.setMinimumWidth(460)
+        side.setMinimumWidth(SIDE_MIN_WIDTH)
         dlg.add_widget(side, 0, 1)
+        self._restore_geometry(dlg)
+        dlg.finished.connect(lambda _result: self._store_geometry())
         plot = dlg.get_plot()
         for signal in (
             plot.SIG_ITEMS_CHANGED,
@@ -139,6 +146,30 @@ class MeasurementTool:
         """Show the tool (modal)."""
         if self.create_dialog() is not None and not execenv.unattended:
             exec_dialog(self.dialog)
+
+    def _restore_geometry(self, dlg: PlotDialog) -> None:
+        """Give the window its last geometry, or room for the plot and the table.
+
+        The default size adds the side panel to the usual size of DataLab plot
+        dialogs, within 90 % of the available screen area.
+        """
+        state = self.plugin.settings_store.settings.measurement_window
+        if state and dlg.restoreGeometry(QC.QByteArray.fromBase64(state.encode())):
+            return
+        width = dlg.width() + SIDE_MIN_WIDTH + 40
+        height = max(dlg.height(), DEFAULT_HEIGHT)
+        screen = dlg.screen().availableGeometry()
+        dlg.resize(
+            min(width, int(0.9 * screen.width())),
+            min(height, int(0.9 * screen.height())),
+        )
+
+    def _store_geometry(self) -> None:
+        """Remember the window geometry for the next time."""
+        if self.dialog is None:
+            return
+        state = bytes(self.dialog.saveGeometry().toBase64()).decode("ascii")
+        self.plugin.settings_store.update(measurement_window=state)
 
     # -- Measurements --------------------------------------------------------
 

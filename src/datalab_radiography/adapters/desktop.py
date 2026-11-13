@@ -10,8 +10,9 @@ from datalab.config import get_config_path
 from datalab.env import execenv
 from datalab.plugins import PluginBase, PluginCapability, PluginInfo
 from datalab.plugins.examples import PluginExample, PluginExampleData
-from datalab.plugins.recipes import RecipeDescriptor
+from datalab.plugins.recipes import RecipeDescriptor, RecipeObjectType
 from datalab.plugins.tiles import WelcomeTile
+from datalab.plugins.tools import PluginTool, ToolSelection
 from qtpy import QtWidgets as QW
 
 from .. import PLUGIN_DESCRIPTION, PLUGIN_ID, PLUGIN_NAME, __version__
@@ -40,7 +41,40 @@ from .desktop_measure import MeasurementTool
 
 PLUGIN_ICON = "datalab_radiography:icons/radiography.svg"
 DEMO_ICON = "datalab_radiography:icons/radiography_demo.svg"
+MAGNIFICATION_ICON = "datalab_radiography:icons/magnification.svg"
+MEASURE_ICON = "datalab_radiography:icons/measure.svg"
 DOCUMENTATION_URL = "https://github.com/DataLab-Platform/datalab-radiography"
+
+#: Interactive windows of DataLab Desktop, listed with the simulator in the
+#: plugin menu and in the Applications panel
+DESKTOP_TOOLS = (
+    PluginTool(
+        id="measurement-tool",
+        title="Measurement tool...",
+        launcher="measurement_tool",
+        description="Measure distances, angles, diameters and areas in every plane",
+        icon=MEASURE_ICON,
+        object_type=RecipeObjectType.IMAGE,
+        selection=ToolSelection.EXACTLY_ONE,
+    ),
+    PluginTool(
+        id="magnifications",
+        title="Magnifications...",
+        launcher="magnification_manager",
+        description="Define, choose and copy the magnifications of the image",
+        icon=MAGNIFICATION_ICON,
+        object_type=RecipeObjectType.IMAGE,
+        selection=ToolSelection.EXACTLY_ONE,
+    ),
+    PluginTool(
+        id="geometry-calculator",
+        title="Geometry calculator...",
+        launcher="geometry_calculator",
+        description="Magnification, unsharpness and optimal magnification",
+        icon=MAGNIFICATION_ICON,
+        object_type=RecipeObjectType.IMAGE,
+    ),
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,7 +97,7 @@ class XRayRadiographyNDTPlugin(PluginBase):
     )
     RECIPES = WORKFLOW_RECIPES
     EXAMPLES = DEMO_EXAMPLES
-    TOOLS = (SIMULATOR_TOOL,)
+    TOOLS = (SIMULATOR_TOOL, *DESKTOP_TOOLS)
     WELCOME_TILES = (
         WelcomeTile(
             id="application",
@@ -317,32 +351,13 @@ class XRayRadiographyNDTPlugin(PluginBase):
                     separator=True,
                 )
             with handler.new_menu(wfeatures.GROUP_MAGNIFICATION):
-                self.magnification_action = handler.new_action(
-                    "Magnifications...",
-                    triggered=self.magnification_manager,
-                    tip="Define, choose and copy the magnifications of the image",
-                    select_condition="exactly_one",
-                )
                 self.pitch_action = handler.new_action(
                     "Detector pixel pitch...",
                     triggered=self.set_detector_pitch,
                     select_condition="at_least_one",
                 )
                 self._feature_actions(wfeatures.GROUP_MAGNIFICATION)
-                self.calculator_action = handler.new_action(
-                    "Geometry calculator...",
-                    triggered=self.geometry_calculator,
-                    tip="Magnification, unsharpness and optimal magnification",
-                    select_condition="always",
-                    separator=True,
-                )
             with handler.new_menu(wfeatures.GROUP_MEASUREMENTS):
-                self.measure_action = handler.new_action(
-                    "Measurement tool...",
-                    triggered=self.measurement_tool,
-                    tip="Measure distances, angles, diameters and areas in every plane",
-                    select_condition="exactly_one",
-                )
                 self._feature_actions(wfeatures.GROUP_MEASUREMENTS)
             with handler.new_menu(wfeatures.GROUP_CORRECTIONS):
                 self._recipe_action(OFFSET_GAIN_RECIPE)

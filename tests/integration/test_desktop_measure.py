@@ -65,6 +65,35 @@ def test_measurement_tool(tmp_path) -> None:
         assert kept["kind"] == "segment" and "Length 1 cm (Weld)" in kept["title"]
 
 
+def test_measurement_tool_window_size() -> None:
+    """The window makes room for the table, then keeps the user's geometry."""
+    with radiography_app() as window:
+        plugin = the_plugin()
+        assert [tool.id for tool in plugin.get_tools()] == [
+            "xray-simulator",
+            "measurement-tool",
+            "magnifications",
+            "geometry-calculator",
+        ]
+        image = _calibrated_image()
+        window.imagepanel.add_object(image)
+        window.imagepanel.objview.select_objects([get_uuid(image)])
+        plugin.settings_store.update(measurement_window=None)
+        tool = plugin.measurement_tool()
+        plot_size = window.imagepanel.get_dialog_size()
+        assert tool.dialog.width() >= min(
+            plot_size[0] + 460,
+            int(0.9 * tool.dialog.screen().availableGeometry().width()),
+        )
+        tool.dialog.resize(900, 640)
+        tool._store_geometry()  # pylint: disable=protected-access
+        assert plugin.settings_store.settings.measurement_window
+        tool.dialog.close()
+        again = plugin.measurement_tool()
+        assert (again.dialog.width(), again.dialog.height()) == (900, 640)
+        again.dialog.close()
+
+
 def test_measurement_report_feature() -> None:
     """The registered report attaches a table to the image."""
     with radiography_app() as window:

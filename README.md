@@ -36,7 +36,7 @@ Python 3.10 or later is required in a Python environment; the standalone DataLab
 ## First Run
 
 1. In the image panel, choose **Plugins > X-ray Radiography & NDT > Examples > Simulated weld...**: a weld radiograph with pores, a crack, image quality indicators and a calibration ball, with two magnifications.
-2. Choose **Measurements > Measurement tool...** and draw a segment: its length is given in pixels, in the detector plane and in both object planes.
+2. Choose **Measurement tool...** in the plugin menu and draw a segment: its length is given in pixels, in the detector plane and in both object planes.
 3. Choose **NDT measurements > Indication detection...** and accept the parameters: the pores and the crack are annotated and sized in mm.
 
 See [Getting started](doc/getting-started.md).

@@ -82,18 +82,20 @@ class SimulatorSettings(gds.DataSet):
     focal_spot = gds.FloatItem("Focal spot size", default=0.4, min=0.0, unit="mm")
     voltage = gds.FloatItem(
         "Tube voltage",
-        default=160.0,
-        min=10.0,
-        max=1000.0,
+        default=sim.REFERENCE_VOLTAGE_KV,
+        min=sim.VOLTAGE_RANGE_KV[0],
+        max=sim.VOLTAGE_RANGE_KV[1],
         unit="kV",
-        help="Informative: the attenuation model uses effective coefficients",
+        help="Lower voltages are more attenuated: more contrast, less signal "
+        "behind thick parts",
     )
     photons = gds.FloatItem(
         "Photons per pixel",
         default=6000.0,
-        min=10.0,
-        max=1e6,
-        help="Mean detected photons per pixel in the free beam",
+        min=100.0,
+        max=30000.0,
+        help="Mean detected photons per pixel in the free beam: more photons "
+        "give less noise; the 14-bit detector saturates above about 28,000",
     )
     frames = gds.IntItem(
         "Averaged frames", default=1, min=1, max=64, help="Frames averaged per image"
