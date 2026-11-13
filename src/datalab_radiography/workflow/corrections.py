@@ -149,6 +149,27 @@ def free_beam_intensity(obj: ImageObj, param: AttenuationParam) -> float:
     return value
 
 
+def detector_saturation_level(obj: ImageObj) -> float | None:
+    """Return the saturation level of the detector of an image, if known.
+
+    It is the full scale of the digitizer, from the DICOM attribute BitsStored
+    or from the detector of the simulator.
+    """
+    for key, path in (
+        (md.DICOM_KEY, ("BitsStored",)),
+        (md.SIMULATION_TRUTH_KEY, ("detector", "bit_depth")),
+    ):
+        try:
+            value = md.loads(obj.metadata.get(key))
+        except md.MetadataSchemaError:
+            continue
+        for name in path:
+            value = value.get(name) if isinstance(value, dict) else None
+        if isinstance(value, int) and not isinstance(value, bool) and 0 < value <= 32:
+            return float(corrections.full_scale(value))
+    return None
+
+
 def suggest_frame_bindings(
     candidates: Sequence[ImageObj],
 ) -> dict[str, tuple[ImageObj, ...]]:

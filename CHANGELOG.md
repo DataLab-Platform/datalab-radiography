@@ -36,10 +36,10 @@ Simulator and examples:
 
 Detector corrections and physical quantities:
 
-- Offset and gain correction of raw radiographs with mean dark and flat frames (detector offset, gain non-uniformity, heel effect), as corrected images or transmissions, with the correction of the defective pixels found in the dark and flat frames and a quality report (saturation, invalid gain, defective pixels).
+- Offset and gain correction of raw radiographs with mean dark and flat frames (detector offset, gain non-uniformity, heel effect), as corrected images or transmissions, with the correction of the defective pixels found in the dark and flat frames and a quality report (saturation, invalid gain, defective pixels). Saturated pixels of the radiographs and of the flat frames are counted from the saturation level of the detector (parameter, DICOM BitsStored or simulator); without it, a possible saturation is estimated and reported as heuristic.
 - Defective pixel map and correction: pixels deviating from their local median, replaced by the median of their valid neighbors.
 - Attenuation -ln(I / I0), with I0 measured in the air (regions of interest), given, or taken from the image; attenuation with a flat image; equivalent thickness of a material of known attenuation coefficient.
-- Step wedge thickness calibration: one region of interest per step, optional dark and flat frames, polynomial calibration that takes beam hardening into account (within 0.01 mm on the simulated wedge), calibration curve and thickness maps of the wedge and of other radiographs.
+- Step wedge thickness calibration: one region of interest per step, optional dark and flat frames, polynomial calibration that takes beam hardening into account (within 0.01 mm on the simulated wedge), calibration curve and thickness maps of the wedge and of other radiographs. Degenerate calibrations are refused (attenuation not increasing with the step thickness, calibration curve not increasing over the calibrated range), and extrapolated thicknesses are reported.
 
 Enhancement:
 

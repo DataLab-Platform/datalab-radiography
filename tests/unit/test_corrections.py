@@ -9,8 +9,10 @@ import pytest
 from datalab.plugins.recipes import RecipeExecutionContext, RecipeValidationError
 from sigima.objects import create_image, create_image_roi
 
+from datalab_radiography import demo
 from datalab_radiography.core import attenuation as catt
 from datalab_radiography.core import corrections as ccorr
+from datalab_radiography.core import metadata as md
 from datalab_radiography.core import simulation as sim
 from datalab_radiography.workflow import computations
 from datalab_radiography.workflow import correction_recipes as recipes
@@ -103,6 +105,79 @@ def test_attenuation_and_thickness_calibration() -> None:
         catt.calibrate_thickness([0.1, 0.2], [1.0, 2.0], degree=2)
     with pytest.raises(ValueError):
         catt.calibrate_thickness([0.1], [1.0, 2.0])
+    assert calibration.domain == (0.0, pytest.approx(values.max()))
+    assert calibration.extrapolated_fraction(np.array([0.0, -0.01, np.nan])) == 0.0
+    assert calibration.extrapolated_fraction(np.array([0.5, values.max() * 2])) == 0.5
+
+
+@pytest.mark.parametrize(
+    ("attenuations", "thicknesses", "degree", "through_origin", "message"),
+    [
+        # Identical attenuations: rank-deficient system
+        ([1.2, 1.2, 1.2], [5, 10, 15], 2, True, "does not increase with the thick"),
+        # Thick steps beyond the dynamic range of the detector
+        ([0.3, 0.6, 0.85, 1.05, 1.05], [2, 4, 6, 8, 10], 2, True, "8 mm"),
+        # Step regions in the wrong order
+        ([0.3, 0.85, 0.6, 1.05], [2, 4, 6, 8], 1, True, "does not increase"),
+        # Repeated thicknesses do not add degrees of freedom
+        ([0.3, 0.31, 0.6], [2, 2, 4], 2, True, "different thicknesses"),
+        # Well-ordered steps, but a fit decreasing at the bottom of the range
+        (
+            [0.3, 0.55, 0.62, 0.70, 0.74, 0.76],
+            [2, 4, 6, 8, 10, 12],
+            2,
+            False,
+            "curve does not increase",
+        ),
+    ],
+)
+def test_thickness_calibration_refuses_degenerate_steps(
+    attenuations, thicknesses, degree, through_origin, message
+) -> None:
+    """Degenerate or ambiguous calibrations raise an explicit error."""
+    with pytest.raises(ValueError, match=message):
+        catt.calibrate_thickness(attenuations, thicknesses, degree, through_origin)
+
+
+def test_thickness_calibration_averages_repeated_steps() -> None:
+    """Several regions of the same thickness are accepted."""
+    calibration = catt.calibrate_thickness(
+        [0.3, 0.31, 0.6, 0.9], [2.0, 2.0, 4.0, 6.0], degree=1
+    )
+    assert calibration.thickness(0.6) == pytest.approx(4.0, rel=0.05)
+
+
+def test_saturation_estimate() -> None:
+    """A known level is counted; otherwise a plateau must be at a full scale."""
+    rng = np.random.default_rng(2)
+    frame = np.round(rng.normal(1200.0, 20.0, (100, 100)))
+    frame[:25] = 1800.0  # uniform region far from any full scale
+    estimate = ccorr.saturation(frame)
+    assert estimate.heuristic and estimate.level is None and estimate.fraction == 0
+    frame[:10] = 4095.0  # 12-bit full scale
+    estimate = ccorr.saturation(frame)
+    assert estimate.heuristic and estimate.level == pytest.approx(0.98 * 4095)
+    assert estimate.fraction == pytest.approx(0.1)
+    estimate = ccorr.saturation(frame, level=1800.0)
+    assert not estimate.heuristic and estimate.fraction == pytest.approx(0.25)
+    ignore = np.zeros(frame.shape, dtype=bool)
+    ignore[:10] = True
+    assert ccorr.saturation(frame, ignore=ignore).fraction == 0.0
+    assert ccorr.saturation(frame + 0.5).level is None  # not digital numbers
+    frame[0, 0] = 4095.0
+    assert ccorr.saturation(frame[1:], level=4095.0).fraction == pytest.approx(9 / 99)
+
+
+def test_detector_saturation_level() -> None:
+    """The full scale comes from DICOM attributes or from the simulator."""
+    image = create_image("image", np.zeros((4, 4)))
+    assert wcorr.detector_saturation_level(image) is None
+    image.metadata[md.DICOM_KEY] = md.dumps({"BitsStored": 12})
+    assert wcorr.detector_saturation_level(image) == 4095.0
+    simulated = _campaign()[0]
+    assert wcorr.detector_saturation_level(simulated) is None
+    image = demo.materialize_generated_example("simulated-campaign").objects[0]
+    assert wcorr.detector_saturation_level(image) == 2.0**14 - 1
 
 
 def test_computation_functions() -> None:
@@ -182,6 +257,27 @@ def test_offset_gain_recipe() -> None:
     assert recipes.check_offset_gain_inputs(bad, param)[0].code == (
         "inconsistent-image-size"
     )
+
+
+def test_offset_gain_recipe_reports_saturated_flats() -> None:
+    """Saturated flat frames are reported, as heuristic without a known level."""
+    frames = _campaign()
+    inputs = wcorr.suggest_frame_bindings(frames)
+    for flat in inputs["flat"]:
+        flat.data[:, :20] = 16383
+    param = recipes.OffsetGainRecipeParam()
+    outcome = recipes.run_offset_gain(inputs, param, RecipeExecutionContext())
+    flats = [d for d in outcome.diagnostics if d.code == "saturated-flat"]
+    assert len(flats) == 2
+    assert "possible saturation (heuristic)" in flats[0].message
+    assert "the gain is underestimated" in flats[0].message
+    param.saturation_level = 16383.0
+    outcome = recipes.run_offset_gain(inputs, param, RecipeExecutionContext())
+    flats = [d for d in outcome.diagnostics if d.code == "saturated-flat"]
+    assert "heuristic" not in flats[0].message and "20 %" in flats[0].message
+    table = outcome.results[0].value
+    assert table.headers[6] == "Saturation level"
+    assert table.data[0][6] == "≥ 16383 DN"
 
 
 def test_step_wedge_recipe_checks() -> None:

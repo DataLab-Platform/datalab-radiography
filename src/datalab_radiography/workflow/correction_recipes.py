@@ -29,7 +29,12 @@ from ..core import corrections as core_corrections
 from ..core import metadata as md
 from ..core import units
 from . import display as wdisplay
-from .corrections import OffsetGainParam, derived_image, suggest_frame_bindings
+from .corrections import (
+    OffsetGainParam,
+    derived_image,
+    detector_saturation_level,
+    suggest_frame_bindings,
+)
 
 FRAME_ROLE_HINT = RecipeMetadataRequirement(
     md.FRAME_ROLE_KEY,
@@ -37,6 +42,8 @@ FRAME_ROLE_HINT = RecipeMetadataRequirement(
     required=False,
 )
 UNIT_CHOICES = tuple((unit, unit) for unit in units.LENGTH_UNITS_MM)
+#: Fraction of extrapolated pixels of a thickness map above which it is reported
+EXTRAPOLATION_WARNING_FRACTION = 0.01
 
 
 def _error(code: str, message: str) -> RecipeDiagnostic:
@@ -98,6 +105,51 @@ class OffsetGainRecipeParam(OffsetGainParam):
         default=True,
         help="Replace hot, dead and weak pixels found in the dark and flat frames",
     )
+    saturation_level = gds.FloatItem(
+        "Saturation level",
+        default=0.0,
+        min=0.0,
+        unit="DN",
+        help="Value of a saturated pixel of the raw and flat frames. 0: full "
+        "scale of the detector given by the images (DICOM BitsStored, "
+        "simulator), otherwise estimated from the data (heuristic)",
+    )
+
+
+def _saturation_level(
+    image: ImageObj, parameters: OffsetGainRecipeParam
+) -> float | None:
+    """Return the saturation level of an image: parameter, then metadata."""
+    if parameters.saturation_level > 0:
+        return float(parameters.saturation_level)
+    return detector_saturation_level(image)
+
+
+def _saturation_text(estimate: core_corrections.SaturationEstimate) -> str:
+    """Return the saturation level of the quality table."""
+    if estimate.level is None:
+        return "not detected (heuristic)"
+    if estimate.heuristic:
+        return f"≥ {estimate.level:g} DN (heuristic)"
+    return f"≥ {estimate.level:g} DN"
+
+
+def _saturation_message(
+    title: str, estimate: core_corrections.SaturationEstimate, consequence: str
+) -> str:
+    """Return the warning of saturated pixels in a frame."""
+    percent = f"{100 * estimate.fraction:.2g} %"
+    if estimate.heuristic:
+        return (
+            f"{title}: possible saturation (heuristic): {percent} of the pixels "
+            f"are close to the full scale of the digitizer ({estimate.level:g} DN "
+            f"or more); {consequence}. Give the saturation level of the detector "
+            "to confirm."
+        )
+    return (
+        f"{title}: {percent} of the pixels are saturated ({estimate.level:g} DN "
+        f"or more); {consequence}."
+    )
 
 
 def check_offset_gain_inputs(
@@ -125,15 +177,39 @@ def run_offset_gain(
     defects = None
     if parameters.defects:
         defects = core_corrections.detector_defect_map(dark, flat)
+    diagnostics = []
+    for index, image in enumerate(inputs["flat"], start=1):
+        estimate = core_corrections.saturation(
+            image.data, _saturation_level(image, parameters), defects
+        )
+        if estimate.fraction > 0:
+            diagnostics.append(
+                _warning(
+                    "saturated-flat",
+                    _saturation_message(
+                        image.title or f"Flat {index}",
+                        estimate,
+                        "the gain is underestimated there and the corrected "
+                        "values are wrong",
+                    ),
+                    image=image.title,
+                )
+            )
     raws = inputs["raw"]
-    outputs, rows, diagnostics = [], [], []
+    outputs, rows = [], []
     transmission = parameters.output == core_corrections.OUTPUT_TRANSMISSION
     for index, raw in enumerate(raws, start=1):
         context.raise_if_cancelled()
         context.report_progress(index / (len(raws) + 1), f"Correcting {raw.title}")
         try:
             data, report = core_corrections.flat_field_correct(
-                raw.data, dark, flat, parameters.output, parameters.min_gain / 100.0
+                raw.data,
+                dark,
+                flat,
+                parameters.output,
+                parameters.min_gain / 100.0,
+                _saturation_level(raw, parameters),
+                defects,
             )
         except ValueError as exc:
             raise RecipeValidationError(str(exc)) from exc
@@ -153,6 +229,7 @@ def run_offset_gain(
                 100.0 * report.invalid_gain_fraction,
                 100.0 * report.negative_fraction,
                 100.0 * report.saturated_fraction,
+                _saturation_text(report.saturation),
                 0 if defects is None else int(defects.sum()),
             ]
         )
@@ -160,8 +237,11 @@ def run_offset_gain(
             diagnostics.append(
                 _warning(
                     "saturated-radiograph",
-                    f"{raw.title}: {100 * report.saturated_fraction:.2g} % of the "
-                    "pixels are saturated",
+                    _saturation_message(
+                        raw.title,
+                        report.saturation,
+                        "the attenuation of these pixels is underestimated",
+                    ),
                     image=raw.title,
                 )
             )
@@ -182,6 +262,7 @@ def run_offset_gain(
             "Invalid gain (%)",
             "Below dark (%)",
             "Saturated (%)",
+            "Saturation level",
             "Defective pixels",
         ],
         rows,
@@ -394,15 +475,29 @@ def run_step_wedge(
     curve.metadata[md.OUTPUT_ROLE_KEY] = "thickness-calibration"
     outputs = [RecipeObjectOutput("calibration", curve)]
     images = [wedge, *inputs.get("images", ())]
+    diagnostics = []
     for index, image in enumerate(images, start=1):
         context.raise_if_cancelled()
         context.report_progress(index / (len(images) + 1), f"Mapping {image.title}")
-        thickness = calibration.thickness(to_attenuation(image))
+        values = to_attenuation(image)
+        thickness = calibration.thickness(values)
         mapped = derived_image(image, thickness, f"Thickness of {image.title}", "mm")
         mapped.metadata[md.OUTPUT_ROLE_KEY] = "thickness-map"
         if wdisplay.has_profile(mapped):
             mapped.set_metadata_option("invert_colormap", False)
         outputs.append(RecipeObjectOutput(f"thickness-{index}", mapped))
+        extrapolated = calibration.extrapolated_fraction(values)
+        if extrapolated > EXTRAPOLATION_WARNING_FRACTION:
+            low, high = calibration.domain
+            diagnostics.append(
+                _warning(
+                    "extrapolated-thickness",
+                    f"{image.title}: the attenuation of {100 * extrapolated:.2g} % "
+                    f"of the pixels is outside the calibrated range ({low:.3g} to "
+                    f"{high:.3g}): their thickness is extrapolated",
+                    image=image.title,
+                )
+            )
     rows = [
         [f"Step {index}", t, a, t + r, r]
         for index, (t, a, r) in enumerate(
@@ -426,22 +521,12 @@ def run_step_wedge(
         func_name="step_wedge_calibration",
         attrs={"coefficients": list(calibration.coefficients)},
     )
-    diagnostics = []
     if calibration.rms_residual > 0.02 * max(thicknesses):
         diagnostics.append(
             _warning(
                 "large-residuals",
                 f"RMS residual {calibration.rms_residual:.3g} mm: check the step "
                 "regions and thicknesses, or change the polynomial degree",
-            )
-        )
-    slopes = np.diff(calibration.thickness(x))
-    if np.any(slopes <= 0):
-        diagnostics.append(
-            _warning(
-                "non-monotonic-calibration",
-                "The calibration is not monotonic over the attenuation range: "
-                "lower the polynomial degree",
             )
         )
     context.report_progress(1.0, "Done")

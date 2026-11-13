@@ -11,6 +11,82 @@ from scipy import ndimage
 OUTPUT_CORRECTED = "corrected"
 OUTPUT_TRANSMISSION = "transmission"
 OUTPUTS = (OUTPUT_CORRECTED, OUTPUT_TRANSMISSION)
+#: Fraction of saturated pixels below which no saturation is reported
+SATURATION_MIN_FRACTION = 1e-3
+#: Bit depths of the digitizers recognized by the saturation heuristic
+HEURISTIC_BIT_DEPTHS = tuple(range(8, 17))
+#: Relative distance to the full scale counted as saturation by the heuristic
+HEURISTIC_FULL_SCALE_TOLERANCE = 0.02
+
+
+def full_scale(bit_depth: int) -> int:
+    """Return the largest value of an unsigned digitizer of a given bit depth."""
+    return 2 ** int(bit_depth) - 1
+
+
+@dataclasses.dataclass(frozen=True)
+class SaturationEstimate:
+    """Saturated pixels of a frame.
+
+    Attributes:
+        fraction: fraction of saturated pixels (0 below 0.1 %)
+        level: value from which a pixel is counted as saturated, if any
+        heuristic: True if the level was estimated from the data (the full scale
+         of a digitizer close to the maximum value), False if it was given
+    """
+
+    fraction: float
+    level: float | None
+    heuristic: bool
+
+
+def _heuristic_level(values: np.ndarray) -> float | None:
+    """Return the saturation level estimated from integer-valued data, if any.
+
+    The maximum of the data must be close to the full scale 2^k - 1 of a
+    digitizer of 8 to 16 bits; pixels within 2 % of this full scale are then
+    possibly saturated.
+    """
+    if not values.size or not np.all(values == np.round(values)):
+        return None
+    maximum = float(values.max())
+    for bits in HEURISTIC_BIT_DEPTHS:
+        scale = full_scale(bits)
+        if maximum <= scale:
+            low = (1.0 - HEURISTIC_FULL_SCALE_TOLERANCE) * scale
+            return low if maximum >= low else None
+    return None
+
+
+def saturation(
+    frame: np.ndarray,
+    level: float | None = None,
+    ignore: np.ndarray | None = None,
+) -> SaturationEstimate:
+    """Return the fraction of saturated pixels of a raw frame.
+
+    With a known saturation level (instrument), the pixels at or above it are
+    saturated. Otherwise, the estimate is heuristic: see
+    :func:`_heuristic_level`.
+
+    Args:
+        frame: raw frame, in digital numbers
+        level: saturation level of the detector, if known
+        ignore: mask of pixels not counted (e.g. defective pixels)
+    """
+    values = np.asarray(frame, dtype=float)
+    if ignore is not None:
+        values = values[~ignore]
+    values = values[np.isfinite(values)]
+    heuristic = level is None
+    if heuristic:
+        level = _heuristic_level(values)
+    fraction = 0.0
+    if level is not None and values.size:
+        fraction = float(np.mean(values >= level))
+    if fraction < SATURATION_MIN_FRACTION:
+        fraction = 0.0
+    return SaturationEstimate(fraction, level, heuristic)
 
 
 def mean_frame(frames: Sequence[np.ndarray]) -> np.ndarray:
@@ -39,15 +115,19 @@ class FlatFieldReport:
         gain_level: median of the mean flat minus dark frame
         invalid_gain_fraction: fraction of pixels whose flat is not above dark
         negative_fraction: fraction of pixels of the raw frame below dark
-        saturated_fraction: fraction of pixels of the raw frame at its maximum,
-         when it is frequent (saturation)
+        saturation: saturated pixels of the raw frame (see :func:`saturation`)
     """
 
     dark_level: float
     gain_level: float
     invalid_gain_fraction: float
     negative_fraction: float
-    saturated_fraction: float
+    saturation: SaturationEstimate
+
+    @property
+    def saturated_fraction(self) -> float:
+        """Fraction of saturated pixels of the raw frame."""
+        return self.saturation.fraction
 
 
 def flat_field_correct(
@@ -56,6 +136,8 @@ def flat_field_correct(
     flat: np.ndarray,
     output: str = OUTPUT_CORRECTED,
     min_gain_fraction: float = 0.05,
+    saturation_level: float | None = None,
+    ignore: np.ndarray | None = None,
 ) -> tuple[np.ndarray, FlatFieldReport]:
     """Correct the offset and gain non-uniformity of a raw frame.
 
@@ -69,6 +151,9 @@ def flat_field_correct(
         output: ``corrected`` or ``transmission``
         min_gain_fraction: pixels whose gain F - D is below this fraction of its
          median are invalid (NaN in the result)
+        saturation_level: saturation level of the detector, if known (otherwise
+         the saturation is estimated, see :func:`saturation`)
+        ignore: pixels not counted as saturated (e.g. defective pixels)
 
     Returns:
         Corrected frame (or transmission) and quality indicators
@@ -91,17 +176,12 @@ def flat_field_correct(
     signal = raw - dark
     with np.errstate(divide="ignore", invalid="ignore"):
         transmission = np.where(invalid, np.nan, signal / np.where(invalid, 1, gain))
-    raw_max = raw.max()
-    saturated = raw == raw_max
-    saturated_fraction = float(saturated.mean())
-    if saturated_fraction < 1e-3:
-        saturated_fraction = 0.0
     report = FlatFieldReport(
         dark_level=float(np.median(dark)),
         gain_level=gain_level,
         invalid_gain_fraction=float(invalid.mean()),
         negative_fraction=float((signal < 0).mean()),
-        saturated_fraction=saturated_fraction,
+        saturation=saturation(raw, saturation_level, ignore),
     )
     if output == OUTPUT_TRANSMISSION:
         return transmission, report
