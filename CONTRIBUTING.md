@@ -44,7 +44,7 @@ simulator, demo -> workflow -> core
 - `simulator.py` exposes the radiography simulator as a DataLab instrument; `demo.py` builds the examples. Both follow the rules of `workflow`.
 - `adapters/desktop*.py` integrate the plugin in DataLab Desktop (menus, dialogs, display profile, DICOM attributes). `adapters/web.py` integrates it in DataLab-Web and must not import Qt, PlotPy or pydicom.
 
-`tests/unit/test_architecture.py` checks these boundaries.
+`tests/unit/test_architecture.py` checks these boundaries; [doc/architecture.md](doc/architecture.md) details them.
 
 ## Tests
 
@@ -55,6 +55,20 @@ simulator, demo -> workflow -> core
 ### Local Corpus of Real Radiographs
 
 Some validation tests use open real data that is not stored in the repository (several hundred megabytes, including human medical images that must not be redistributed). Set `DATALAB_RADIOGRAPHY_CORPUS` to the folder holding the corpus to run them; they are skipped otherwise, as in CI. The corpus layout and the licenses of its datasets are described in `SOURCES.md` at the root of the corpus folder.
+
+### Real-Data Examples
+
+The packaged examples `src/datalab_radiography/examples/*.h5` are reduced extracts of the corpus (less than 1 MiB each), with their attribution in `examples/SOURCES.md` and in the metadata of each image. Rebuild them with:
+
+```bash
+python scripts/build_examples.py
+```
+
+Then update the sizes and SHA-256 checksums pinned in `tests/integration/test_distribution_lifecycle.py`.
+
+### Screenshots
+
+`python scripts/take_screenshots.py` regenerates the images of `doc/images`, with the plugin installed in DataLab's environment.
 
 ## Branches
 

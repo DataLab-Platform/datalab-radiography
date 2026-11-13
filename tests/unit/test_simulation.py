@@ -148,7 +148,11 @@ def test_simulator_instrument() -> None:
 
 def test_examples_are_declared_and_generated() -> None:
     """Examples are deterministic and carry their metadata."""
-    assert {example.id for example in demo.EXAMPLES} == set(demo.GENERATED_EXAMPLES)
+    generated = {example.id for example in demo.EXAMPLES if example.resource is None}
+    assert generated == set(demo.GENERATED_EXAMPLES)
+    assert {example.id for example in demo.REAL_EXAMPLES} == set(
+        demo.REAL_EXAMPLE_FILES
+    )
     first = demo.materialize_generated_example("simulated-weld").objects[0]
     second = demo.materialize_generated_example("simulated-weld").objects[0]
     assert np.array_equal(first.data, second.data)

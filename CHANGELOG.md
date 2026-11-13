@@ -32,6 +32,7 @@ Simulator and examples:
 
 - X-ray radiography simulator, with a live view: butt weld with pores, a crack, wire and duplex image quality indicators (ISO 19232-1 and -5) and a calibration ball; pipe seen tangentially; aluminum step wedge; cast plate with pores. Each object plane has its own magnification and geometric unsharpness; the detector adds blur, a heel effect, gain and offset non-uniformity, Poisson and read noise, defective pixels and saturation. Acquisitions add radiographs, dark and flat frames with their geometry, magnifications and ground truth.
 - Simulated examples: weld (two magnifications), pipe (two magnifications), step wedge, and a correction campaign with dark and flat frames. A welcome page tile opens the weld example.
+- Real-data examples, reduced extracts of open datasets under the CC BY 4.0 license, with their attribution: raw flat-panel radiograph of a walnut with its dark and flat images (magnification 3.015), circuit board tilted by 45° (magnification 6.95), and a knee phantom projection (magnification 1.707).
 
 Detector corrections and physical quantities:
 

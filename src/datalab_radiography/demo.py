@@ -299,8 +299,54 @@ GENERATED_EXAMPLES: dict[str, GeneratedExample] = {
     ),
 }
 
-EXAMPLES: tuple[PluginExample, ...] = tuple(
-    generated.example for generated in GENERATED_EXAMPLES.values()
+#: Workspace files of the real-data examples (``examples`` package folder),
+#: built from the test corpus by ``scripts/build_examples.py``
+REAL_EXAMPLE_FILES = {
+    "walnut": "walnut.h5",
+    "circuit-board": "circuit_board.h5",
+    "knee-phantom": "knee_phantom.h5",
+}
+EXAMPLE_PACKAGE = "datalab_radiography"
+
+
+def _resource(example_id: str) -> str:
+    """Return the package resource of a real-data example."""
+    return f"{EXAMPLE_PACKAGE}:examples/{REAL_EXAMPLE_FILES[example_id]}"
+
+
+WALNUT_EXAMPLE = PluginExample(
+    id="walnut",
+    title="Walnut (raw flat-panel radiograph)",
+    resource=_resource("walnut"),
+    description=(
+        "Raw radiograph of a walnut with its dark and flat images, magnification "
+        "3.015 (CWI FleX-ray Lab, CC BY 4.0)"
+    ),
+    recipe_ids=(OFFSET_GAIN_RECIPE.recipe_id,),
+)
+CIRCUIT_BOARD_EXAMPLE = PluginExample(
+    id="circuit-board",
+    title="Circuit board (laminography, 45° tilt)",
+    resource=_resource("circuit-board"),
+    description=(
+        "Radiograph of a keyboard circuit board tilted by 45°, magnification "
+        "6.95, free beam 1992 DN (LUT University, CC BY 4.0)"
+    ),
+)
+KNEE_PHANTOM_EXAMPLE = PluginExample(
+    id="knee-phantom",
+    title="Knee phantom (cone-beam CT projection)",
+    resource=_resource("knee-phantom"),
+    description=(
+        "Flat-field corrected projection of a knee phantom, magnification 1.707 "
+        "(Zenodo 10.5281/zenodo.12722386, CC BY 4.0)"
+    ),
+)
+REAL_EXAMPLES = (WALNUT_EXAMPLE, CIRCUIT_BOARD_EXAMPLE, KNEE_PHANTOM_EXAMPLE)
+
+EXAMPLES: tuple[PluginExample, ...] = (
+    *(generated.example for generated in GENERATED_EXAMPLES.values()),
+    *REAL_EXAMPLES,
 )
 
 

@@ -129,13 +129,14 @@ class XRayRadiographyNDTPlugin(PluginBase):
     def register_computations(self) -> None:
         """Register the processing features and watch new images."""
         processor = self.imagepanel.processor
+        origin = self.feature_origin()
         for feature in wfeatures.features_for(wfeatures.HOST_DESKTOP):
             options = {
                 "feature_id": feature.feature_id,
                 "owner_plugin_id": self.plugin_id,
             }
             if feature.pattern == wfeatures.PATTERN_1_TO_1:
-                processor.register_1_to_1(
+                registered = processor.register_1_to_1(
                     feature.function,
                     feature.title,
                     paramclass=feature.paramclass,
@@ -144,7 +145,7 @@ class XRayRadiographyNDTPlugin(PluginBase):
                     **options,
                 )
             elif feature.pattern == wfeatures.PATTERN_1_TO_0:
-                processor.register_1_to_0(
+                registered = processor.register_1_to_0(
                     feature.function,
                     feature.title,
                     paramclass=feature.paramclass,
@@ -152,7 +153,7 @@ class XRayRadiographyNDTPlugin(PluginBase):
                     **options,
                 )
             elif feature.pattern == wfeatures.PATTERN_2_TO_1:
-                processor.register_2_to_1(
+                registered = processor.register_2_to_1(
                     feature.function,
                     feature.title,
                     paramclass=feature.paramclass,
@@ -161,14 +162,27 @@ class XRayRadiographyNDTPlugin(PluginBase):
                     **options,
                 )
             else:
-                processor.register_n_to_1(
+                registered = processor.register_n_to_1(
                     feature.function,
                     feature.title,
                     paramclass=feature.paramclass,
                     comment=feature.comment,
                     **options,
                 )
+            # DataLab 1.4 looks for the plugin of a function in the module of the
+            # plugin class only: the functions of the workflow layer would get an
+            # anonymous origin, whose missing values cannot be saved in a workspace
+            registered.plugin_origin = origin
         self.display.connect()
+
+    def feature_origin(self) -> dict[str, str]:
+        """Return the origin recorded with the results of the plugin features."""
+        return {
+            "plugin_class": self.__class__.__name__,
+            "module": self.__class__.__module__,
+            "directory": osp.basename(osp.dirname(osp.abspath(__file__))),
+            "version": __version__,
+        }
 
     def unregister_hooks(self) -> None:
         """Stop watching the images."""
